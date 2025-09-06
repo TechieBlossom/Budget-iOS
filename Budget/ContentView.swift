@@ -6,56 +6,59 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
-
+    @State private var hasCompletedOnboarding = true
+    
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
+        Group {
+            if hasCompletedOnboarding {
+                MainAppView()
+            } else {
+                OnboardingCoordinator()
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        } detail: {
-            Text("Select an item")
         }
+        .environment(\.appTheme, AppTheme.shared)
     }
+}
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+struct MainAppView: View {
+    @Environment(\.appTheme) private var theme
+    
+    var body: some View {
+        VStack(spacing: 32) {
+            Spacer()
+            
+            DSText("Budget App", font: .dsLargeTitle)
+                .multilineTextAlignment(.center)
+            
+            DSText("Main app interface will be implemented here", font: .dsBody, color: theme.colors.secondaryText)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            
+            DSCard {
+                VStack(spacing: 16) {
+                    DSText("Onboarding Complete! 🎉", font: .dsHeadline)
+                    DSText("The main budget tracking interface will be built next.", font: .dsBody)
+                }
             }
+            .padding(.horizontal, 24)
+            
+            Spacer()
+            
+            DSButton("Reset to Onboarding (Demo)", style: .outline) {
+                // This is just for demo purposes
+                UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
+                // In a real app, you'd navigate back to onboarding
+            }
+            .padding(.horizontal, 24)
+            
+            Spacer()
         }
+        .background(theme.colors.background)
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
