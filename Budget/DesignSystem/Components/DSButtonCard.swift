@@ -26,7 +26,7 @@ struct DSButtonCard: View {
                 DSText(title, font: .dsHeadline, color: titleColor)
                     .fontWeight(.medium)
                 
-                DSText(subtitle, font: .dsBody, color: subtitleColor)
+                DSText(subtitle, font: .dsSubtitle, color: subtitleColor)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 24)

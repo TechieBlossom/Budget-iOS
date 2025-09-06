@@ -6,6 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		BB59EC542E6C546800DB5EB4 /* InriaSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BB59EC4E2E6C546800DB5EB4 /* InriaSans-Bold.ttf */; };
+		BB59EC552E6C546800DB5EB4 /* InriaSans-Italic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BB59EC502E6C546800DB5EB4 /* InriaSans-Italic.ttf */; };
+		BB59EC562E6C546800DB5EB4 /* InriaSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BB59EC532E6C546800DB5EB4 /* InriaSans-Regular.ttf */; };
+		BB59EC572E6C546800DB5EB4 /* InriaSans-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BB59EC512E6C546800DB5EB4 /* InriaSans-Light.ttf */; };
+		BB59EC582E6C546800DB5EB4 /* InriaSans-LightItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BB59EC522E6C546800DB5EB4 /* InriaSans-LightItalic.ttf */; };
+		BB59EC592E6C546800DB5EB4 /* InriaSans-BoldItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BB59EC4F2E6C546800DB5EB4 /* InriaSans-BoldItalic.ttf */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		BB1F72292E6AC38600173143 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +36,12 @@
 		BB1F72192E6AC38500173143 /* Budget.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Budget.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB1F72282E6AC38600173143 /* BudgetTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BudgetTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB1F72322E6AC38600173143 /* BudgetUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BudgetUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB59EC4E2E6C546800DB5EB4 /* InriaSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "InriaSans-Bold.ttf"; sourceTree = "<group>"; };
+		BB59EC4F2E6C546800DB5EB4 /* InriaSans-BoldItalic.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "InriaSans-BoldItalic.ttf"; sourceTree = "<group>"; };
+		BB59EC502E6C546800DB5EB4 /* InriaSans-Italic.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "InriaSans-Italic.ttf"; sourceTree = "<group>"; };
+		BB59EC512E6C546800DB5EB4 /* InriaSans-Light.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "InriaSans-Light.ttf"; sourceTree = "<group>"; };
+		BB59EC522E6C546800DB5EB4 /* InriaSans-LightItalic.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "InriaSans-LightItalic.ttf"; sourceTree = "<group>"; };
+		BB59EC532E6C546800DB5EB4 /* InriaSans-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "InriaSans-Regular.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -88,6 +103,12 @@
 		BB1F72102E6AC38500173143 = {
 			isa = PBXGroup;
 			children = (
+				BB59EC4E2E6C546800DB5EB4 /* InriaSans-Bold.ttf */,
+				BB59EC4F2E6C546800DB5EB4 /* InriaSans-BoldItalic.ttf */,
+				BB59EC502E6C546800DB5EB4 /* InriaSans-Italic.ttf */,
+				BB59EC512E6C546800DB5EB4 /* InriaSans-Light.ttf */,
+				BB59EC522E6C546800DB5EB4 /* InriaSans-LightItalic.ttf */,
+				BB59EC532E6C546800DB5EB4 /* InriaSans-Regular.ttf */,
 				BB1F721B2E6AC38500173143 /* Budget */,
 				BB1F722B2E6AC38600173143 /* BudgetTests */,
 				BB1F72352E6AC38600173143 /* BudgetUITests */,
@@ -225,6 +246,12 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BB59EC542E6C546800DB5EB4 /* InriaSans-Bold.ttf in Resources */,
+				BB59EC552E6C546800DB5EB4 /* InriaSans-Italic.ttf in Resources */,
+				BB59EC562E6C546800DB5EB4 /* InriaSans-Regular.ttf in Resources */,
+				BB59EC572E6C546800DB5EB4 /* InriaSans-Light.ttf in Resources */,
+				BB59EC582E6C546800DB5EB4 /* InriaSans-LightItalic.ttf in Resources */,
+				BB59EC592E6C546800DB5EB4 /* InriaSans-BoldItalic.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
