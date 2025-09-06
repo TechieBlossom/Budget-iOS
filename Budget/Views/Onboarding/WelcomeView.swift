@@ -6,98 +6,63 @@ struct WelcomeView: View {
     @Environment(\.appTheme) private var theme
     
     var body: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: 0) {
             Spacer()
             
             // Header
             VStack(spacing: 16) {
-                DSText("Welcome to Budget", font: .dsLargeTitle)
+                DSText("Welcome To Budget App", font: .dsLargeTitle)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal, 80)
                 
-                DSText("Take control of your finances with smart budget tracking", font: .dsBody, color: theme.colors.secondaryText)
+                DSText("Take control of your finances with smart budget tracking and expense management", font: .dsBody, color: theme.colors.secondaryText)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 8)
             }
             
             Spacer()
+                .frame(maxHeight: 60)
             
-            // Options
-            VStack(spacing: 16) {
-                DSCard {
-                    VStack(spacing: 12) {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(theme.colors.primaryText)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                DSText("Start Fresh", font: .dsHeadline)
-                                DSText("Begin with a new budget setup", font: .dsBody, color: theme.colors.secondaryText)
-                            }
-                            
-                            Spacer()
-                        }
-                        
-                        DSButton("Get Started", style: .primary) {
-                            onboardingState.userChoice = .start
-                        }
-                    }
-                }
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(
-                            onboardingState.userChoice == .start ? theme.colors.primaryText : Color.clear,
-                            lineWidth: 2
-                        )
-                )
-                
-                DSCard {
-                    VStack(spacing: 12) {
-                        HStack {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.title2)
-                                .foregroundColor(theme.colors.primaryText)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                DSText("Import Data", font: .dsHeadline)
-                                DSText("Continue with existing budget data", font: .dsBody, color: theme.colors.secondaryText)
-                            }
-                            
-                            Spacer()
-                        }
-                        
-                        DSButton("Import Existing", style: .outline) {
-                            onboardingState.userChoice = .exportExisting
-                        }
-                    }
-                }
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(
-                            onboardingState.userChoice == .exportExisting ? theme.colors.primaryText : Color.clear,
-                            lineWidth: 2
-                        )
-                )
-            }
-            .padding(.horizontal, 24)
-            
-            Spacer()
-            
-            // Continue Button
-            if onboardingState.userChoice != nil {
-                DSButton("Continue", style: .primary) {
+            // Action Buttons
+            VStack(spacing: 20) {
+                // Get Started Button
+                DSButtonCard("GET STARTED", subtitle: "Begin with a fresh budget setup", style: .primary) {
+                    onboardingState.userChoice = .start
                     withAnimation(.easeInOut(duration: 0.3)) {
                         onboardingState.goToNextStep()
                     }
                 }
                 .padding(.horizontal, 24)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                
+                // OR Separator
+                HStack {
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundColor(theme.colors.secondaryText.opacity(0.3))
+                    
+                    DSText("OR", font: .dsCaption, color: theme.colors.secondaryText)
+                        .padding(.horizontal, 12)
+                    
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundColor(theme.colors.secondaryText.opacity(0.3))
+                }
+                .padding(.horizontal, 24)
+                
+                // Import Button
+                DSButtonCard("IMPORT", subtitle: "Continue with existing budget data", style: .outline) {
+                    onboardingState.userChoice = .exportExisting
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        onboardingState.goToNextStep()
+                    }
+                }
+                .padding(.horizontal, 24)
             }
             
             Spacer()
         }
         .background(theme.colors.background)
-        .animation(.easeInOut(duration: 0.3), value: onboardingState.userChoice)
     }
 }
 

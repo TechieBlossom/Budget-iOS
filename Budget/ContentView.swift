@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var hasCompletedOnboarding = true
+    @State private var hasCompletedOnboarding = false
     
     var body: some View {
         Group {
