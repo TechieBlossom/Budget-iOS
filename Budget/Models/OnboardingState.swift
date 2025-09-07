@@ -49,6 +49,7 @@ class OnboardingState {
     
     // Category step
     var categoryManager = CategoryManager()
+    var categoryAmounts: [String: Double] = [:]
     
     // Navigation methods
     func goToNextStep() {
@@ -90,6 +91,27 @@ class OnboardingState {
         currentStep == .categorySetup
     }
     
+    var totalBudgetAmount: Double {
+        categoryAmounts.values.reduce(0, +)
+    }
+    
+    var formattedTotalBudget: String {
+        let code = selectedCurrency?.code ?? "USD"
+        return String(format: "%.2f %@", totalBudgetAmount, code)
+    }
+    
+    var formattedTotalAmount: String {
+        return String(format: "%.2f", totalBudgetAmount)
+    }
+    
+    var selectedCurrencyCode: String {
+        return selectedCurrency?.code ?? "USD"
+    }
+    
+    func updateCategoryAmount(categoryId: String, amount: Double) {
+        categoryAmounts[categoryId] = amount
+    }
+    
     func completeOnboarding() {
         // This would typically save the onboarding data
         // For now, we'll just mark it as complete
@@ -98,6 +120,27 @@ class OnboardingState {
         print("Currency: \(selectedCurrency?.displayName ?? "none")")
         print("Budget Period: \(budgetPeriod.name)")
         print("Categories: \(categoryManager.categories.count)")
+        print("Total Budget: \(formattedTotalBudget)")
+    }
+    
+    func createCompletedBudget() -> Budget {
+        guard let currency = selectedCurrency else {
+            // Fallback to USD if no currency selected
+            let fallbackCurrency = Currency(code: "USD", name: "US Dollar", symbol: "$")
+            return Budget(
+                period: budgetPeriod,
+                currency: fallbackCurrency,
+                categories: categoryManager.categories,
+                categoryAmounts: categoryAmounts
+            )
+        }
+        
+        return Budget(
+            period: budgetPeriod,
+            currency: currency,
+            categories: categoryManager.categories,
+            categoryAmounts: categoryAmounts
+        )
     }
 }
 

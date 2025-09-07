@@ -21,6 +21,7 @@ extension Currency {
         Currency(code: "JPY", name: "Japanese Yen", symbol: "¥"),
         Currency(code: "INR", name: "Indian Rupee", symbol: "₹"),
         Currency(code: "CAD", name: "Canadian Dollar", symbol: "C$"),
+        Currency(code: "AED", name: "UAE Dirham", symbol: "د.إ"),
         Currency(code: "AUD", name: "Australian Dollar", symbol: "A$"),
         Currency(code: "CHF", name: "Swiss Franc", symbol: "CHF"),
         Currency(code: "CNY", name: "Chinese Yuan", symbol: "¥"),

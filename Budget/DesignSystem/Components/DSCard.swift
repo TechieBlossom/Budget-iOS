@@ -1,17 +1,19 @@
 import SwiftUI
 
 struct DSCard<Content: View>: View {
+    let padding: CGFloat
     let content: Content
     
     @Environment(\.appTheme) private var theme
     
-    init(@ViewBuilder content: () -> Content) {
+    init(padding: CGFloat = 16, @ViewBuilder content: () -> Content) {
         self.content = content()
+        self.padding = padding
     }
     
     var body: some View {
         content
-            .padding(16)
+            .padding(padding)
             .background(theme.colors.card)
             .cornerRadius(12)
             .shadow(color: theme.colors.secondaryText.opacity(0.1), radius: 2, x: 0, y: 1)

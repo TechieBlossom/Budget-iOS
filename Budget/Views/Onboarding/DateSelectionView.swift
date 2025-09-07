@@ -2,121 +2,105 @@ import SwiftUI
 
 struct DateSelectionView: View {
     @Bindable var onboardingState: OnboardingState
+    @State private var selectedDay: Int = 1
     
     @Environment(\.appTheme) private var theme
     
     var body: some View {
         VStack(spacing: 32) {
             // Header
-            VStack(spacing: 12) {
-                DSText("Budget Period", font: .dsTitle)
-                    .multilineTextAlignment(.center)
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    DSText("Select Date", font: .dsTitle)
+                    DSText("Choose the day of the month to start your budget period", font: .dsBody, color: theme.colors.secondaryText)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 
-                DSText("Choose when you want your budget period to start", font: .dsBody, color: theme.colors.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
+                Image(systemName: "calendar")
+                    .font(.system(size: 36, weight: .light))
+                    .foregroundColor(theme.colors.primaryText)
             }
-            .padding(.top, 16)
+            .padding(.horizontal, 16)
+            .padding(.top, 80) // Space for back button
             
-            // Date Selection
+            // Date Grid
+            VStack(spacing: 16) {
+                let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 7)
+                
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(1...28, id: \.self) { day in
+                        Button(action: {
+                            selectedDay = day
+                            updateSelectedDate(day: day)
+                        }) {
+                            Text("\(day)")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(selectedDay == day ? theme.colors.card : theme.colors.primaryText)
+                                .frame(width: 40, height: 40)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(selectedDay == day ? theme.colors.primaryText : theme.colors.card)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(theme.colors.primaryText, lineWidth: selectedDay == day ? 2 : 1)
+                                )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+            
+            // Budget Month Preview
             DSCard {
-                VStack(spacing: 20) {
+                VStack(spacing: 12) {
                     HStack {
-                        Image(systemName: "calendar")
-                            .font(.title2)
-                            .foregroundColor(theme.colors.primaryText)
-                        
-                        DSText("Budget Start Date", font: .dsHeadline)
-                        
+                        DSText("Budget Month Preview", font: .dsHeadline)
                         Spacer()
                     }
                     
-                    DatePicker(
-                        "Start Date",
-                        selection: $onboardingState.selectedStartDate,
-                        displayedComponents: [.date]
-                    )
-                    .datePickerStyle(.wheel)
-                    .labelsHidden()
-                }
-            }
-            .padding(.horizontal, 24)
-            
-            // Budget Period Preview
-            DSCard {
-                VStack(spacing: 16) {
                     HStack {
-                        Image(systemName: "calendar.badge.clock")
-                            .font(.title2)
-                            .foregroundColor(theme.colors.primaryText)
-                        
-                        DSText("Budget Preview", font: .dsHeadline)
-                        
+                        DSText("Budget Name:", font: .dsBody)
                         Spacer()
+                        DSText(onboardingState.budgetPeriod.name, font: .dsBody, color: theme.colors.primaryText)
                     }
                     
-                    VStack(spacing: 12) {
-                        // Budget Name
-                        HStack {
-                            DSText("Budget Name:", font: .dsBody)
-                            Spacer()
-                            DSText(onboardingState.budgetPeriod.name, font: .dsHeadline)
-                        }
-                        
-                        Divider()
-                            .background(theme.colors.secondaryText.opacity(0.3))
-                        
-                        // Date Range
-                        HStack {
-                            DSText("Period:", font: .dsBody)
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 2) {
-                                DSText(formatDate(onboardingState.budgetPeriod.startDate), font: .dsBody)
-                                DSText("to", font: .dsCaption)
-                                DSText(formatDate(onboardingState.budgetPeriod.endDate), font: .dsBody)
-                            }
-                        }
-                        
-                        Divider()
-                            .background(theme.colors.secondaryText.opacity(0.3))
-                        
-                        // Duration
-                        HStack {
-                            DSText("Duration:", font: .dsBody)
-                            Spacer()
-                            DSText("\(onboardingState.budgetPeriod.durationInDays) days", font: .dsHeadline)
-                        }
+                    HStack {
+                        DSText("Period:", font: .dsBody)
+                        Spacer()
+                        DSText("\(formatDate(onboardingState.budgetPeriod.startDate)) - \(formatDate(onboardingState.budgetPeriod.endDate))", 
+                               font: .dsBody, color: theme.colors.primaryText)
                     }
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 16)
             
             Spacer()
-            
-            // Navigation Buttons
-            HStack(spacing: 16) {
-                DSButton("Back", style: .outline) {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        onboardingState.goToPreviousStep()
-                    }
-                }
-                
-                DSButton("Continue", style: .primary) {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        onboardingState.goToNextStep()
-                    }
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
         }
         .background(theme.colors.background)
+        .onAppear {
+            let calendar = Calendar.current
+            selectedDay = calendar.component(.day, from: onboardingState.selectedStartDate)
+        }
+    }
+    
+    private func updateSelectedDate(day: Int) {
+        let calendar = Calendar.current
+        let currentDate = Date()
+        
+        // Create a date with the selected day in the current month
+        var dateComponents = calendar.dateComponents([.year, .month, .day], from: currentDate)
+        dateComponents.day = day
+        
+        if let newDate = calendar.date(from: dateComponents) {
+            onboardingState.selectedStartDate = newDate
+        }
     }
     
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
+        formatter.dateFormat = "MMM d"
         return formatter.string(from: date)
     }
 }

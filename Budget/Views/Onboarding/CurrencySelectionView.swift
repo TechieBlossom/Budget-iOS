@@ -10,90 +10,80 @@ struct CurrencySelectionView: View {
     }
     
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 16) {
             // Header
-            VStack(spacing: 12) {
-                DSText("Select Your Currency", font: .dsTitle)
-                    .multilineTextAlignment(.center)
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    DSText("Select Your Currency", font: .dsTitle)
+                    DSText("Set your preferred currency for tracking expenses", font: .dsBody, color: theme.colors.secondaryText)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 
-                DSText("Choose the currency you'll use for budgeting", font: .dsBody, color: theme.colors.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
+                Image(systemName: "globe")
+                    .font(.system(size: 36, weight: .light))
+                    .foregroundColor(theme.colors.primaryText)
             }
-            .padding(.top, 16)
+            .padding(.horizontal, 16)
+            .padding(.top, 80) // Space for back button
+            .padding(.bottom, 16)
             
             // Search Field
-            VStack(spacing: 16) {
-                DSTextField("Search currencies", text: $onboardingState.currencySearchText)
-                    .padding(.horizontal, 24)
-                
-                if !onboardingState.currencySearchText.isEmpty && filteredCurrencies.isEmpty {
-                    DSCard {
-                        DSText("No currencies found", font: .dsBody, color: theme.colors.secondaryText)
-                            .frame(maxWidth: .infinity, alignment: .center)
+            DSTextField("Search currencies", text: $onboardingState.currencySearchText)
+                .padding(.horizontal, 16)
+            
+            // Currency List - Full Screen
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(filteredCurrencies, id: \.id) { currency in
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                onboardingState.selectedCurrency = currency
+                            }
+                        }) {
+                            HStack(spacing: 16) {
+                                // Currency Info (removed symbol)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    DSText(currency.name, font: .dsHeadline)
+                                    DSText(currency.code, font: .dsBody, color: theme.colors.secondaryText)
+                                }
+                                
+                                Spacer()
+                                
+                                // Selection Indicator
+                                if onboardingState.selectedCurrency?.id == currency.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.title3)
+                                        .foregroundColor(theme.colors.primaryText)
+                                } else {
+                                    Image(systemName: "circle")
+                                        .font(.title3)
+                                        .foregroundColor(theme.colors.secondaryText)
+                                }
+                            }
+                            .padding(.horizontal, 16)
                             .padding(.vertical, 16)
-                    }
-                    .padding(.horizontal, 24)
-                }
-            }
-            
-            // Currency List
-            DSList(filteredCurrencies) { currency in
-                DSListItem(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        onboardingState.selectedCurrency = currency
-                    }
-                }) {
-                    HStack(spacing: 16) {
-                        // Currency Symbol
-                        Text(currency.symbol)
-                            .font(.title2)
-                            .fontWeight(.medium)
-                            .foregroundColor(theme.colors.primaryText)
-                            .frame(width: 40, alignment: .center)
-                        
-                        // Currency Info
-                        VStack(alignment: .leading, spacing: 4) {
-                            DSText(currency.name, font: .dsHeadline)
-                            DSText(currency.code, font: .dsBody, color: theme.colors.secondaryText)
+                            .background(theme.colors.card)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(
+                                        onboardingState.selectedCurrency?.id == currency.id 
+                                        ? theme.colors.primaryText 
+                                        : Color.clear, 
+                                        lineWidth: 2
+                                    )
+                            )
+                            .cornerRadius(8)
                         }
-                        
-                        Spacer()
-                        
-                        // Selection Indicator
-                        if onboardingState.selectedCurrency?.id == currency.id {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.title3)
-                                .foregroundColor(theme.colors.primaryText)
-                        } else {
-                            Image(systemName: "circle")
-                                .font(.title3)
-                                .foregroundColor(theme.colors.secondaryText)
-                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .padding(.horizontal, 16)
                     }
+                    
+                    // Bottom spacing to ensure last item is visible above next button
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(height: 80)
                 }
             }
-            
-            Spacer()
-            
-            // Navigation Buttons
-            HStack(spacing: 16) {
-                DSButton("Back", style: .outline) {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        onboardingState.goToPreviousStep()
-                    }
-                }
-                
-                DSButton("Continue", style: .primary) {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        onboardingState.goToNextStep()
-                    }
-                }
-                .disabled(!onboardingState.canProceed)
-                .opacity(onboardingState.canProceed ? 1.0 : 0.6)
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
         }
         .background(theme.colors.background)
     }

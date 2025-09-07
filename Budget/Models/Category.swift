@@ -53,14 +53,13 @@ class CategoryManager {
     
     func addCategory(name: String, color: CategoryColor) {
         guard canAddMoreCategories else { return }
-        guard !availableColors.contains(color) else { return }
+        guard availableColors.contains(color) else { return }
         
         let newCategory = Category.createCustom(name: name, color: color)
         categories.append(newCategory)
     }
     
     func removeCategory(_ category: Category) {
-        guard !category.isDefault else { return }
         categories.removeAll { $0.id == category.id }
     }
     

@@ -1,96 +1,107 @@
 import SwiftUI
 
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
+    }
+}
+
 struct CategorySetupView: View {
     @Bindable var onboardingState: OnboardingState
     @State private var showingAddCategory = false
     @State private var newCategoryName = ""
+    @State private var budgetAmount = ""
     @State private var selectedColor: CategoryColor?
     
     @Environment(\.appTheme) private var theme
     
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 0) {
             // Header
-            VStack(spacing: 12) {
-                DSText("Setup Categories", font: .dsTitle)
-                    .multilineTextAlignment(.center)
-                
-                DSText("Organize your expenses with categories", font: .dsBody, color: theme.colors.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-            }
-            .padding(.top, 16)
-            
-            // Categories List
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    // Default Categories Section
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            DSText("Default Categories", font: .dsHeadline)
-                            Spacer()
-                            DSText("\(onboardingState.categoryManager.defaultCategories.count)", font: .dsBody, color: theme.colors.secondaryText)
-                        }
-                        .padding(.horizontal, 24)
-                        
-                        ForEach(onboardingState.categoryManager.defaultCategories) { category in
-                            CategoryRow(category: category, isEditable: false)
-                        }
-                    }
-                    
-                    // Custom Categories Section
-                    if !onboardingState.categoryManager.customCategories.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                DSText("Custom Categories", font: .dsHeadline)
-                                Spacer()
-                                DSText("\(onboardingState.categoryManager.customCategories.count)/6", font: .dsBody, color: theme.colors.secondaryText)
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.top, 16)
-                            
-                            ForEach(onboardingState.categoryManager.customCategories) { category in
-                                CategoryRow(
-                                    category: category,
-                                    isEditable: true,
-                                    onDelete: {
-                                        onboardingState.categoryManager.removeCategory(category)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    
-                    // Add Category Button
-                    if onboardingState.categoryManager.canAddMoreCategories {
-                        DSCard {
-                            DSButton("Add Custom Category", style: .primary) {
-                                showingAddCategory = true
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 16)
-                    }
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    DSText("Assign Budget", font: .dsTitle)
+                    DSText("Assign budget amounts to your spending categories", font: .dsBody, color: theme.colors.secondaryText)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                
+                Image(systemName: "chart.pie")
+                    .font(.system(size: 36, weight: .light))
+                    .foregroundColor(theme.colors.primaryText)
             }
-            
-            Spacer()
-            
-            // Navigation Buttons
+            .padding(.horizontal, 16)
+            .padding(.top, 80) // Space for back button
+            .padding(.bottom, 32)
+                
+            // Total Budget Display with Add Category Button
             HStack(spacing: 16) {
-                DSButton("Back", style: .outline) {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        onboardingState.goToPreviousStep()
+                VStack(alignment: .leading, spacing: 4) {
+                    DSText("Total Budget Amount", font: .dsHeadline)
+                    HStack(alignment: .bottom, spacing: 4) {
+                        DSText(onboardingState.formattedTotalAmount, font: .dsHeadline, color: theme.colors.primaryText)
+                        DSText(onboardingState.selectedCurrencyCode, font: .dsSubtitle, color: theme.colors.primaryText)
                     }
                 }
                 
-                DSButton("Complete Setup", style: .primary) {
-                    onboardingState.completeOnboarding()
+                Spacer()
+                
+                if onboardingState.categoryManager.canAddMoreCategories {
+                    DSButton("ADD CATEGORY", style: .outline) {
+                        showingAddCategory = true
+                    }
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
+            
+            // Categories List - Full Screen
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    // Custom Categories Section (shown first)
+                    ForEach(onboardingState.categoryManager.customCategories) { category in
+                        CategoryRowWithAmount(
+                            category: category,
+                            isEditable: true,
+                            onboardingState: onboardingState,
+                            onDelete: {
+                                onboardingState.categoryManager.removeCategory(category)
+                            }
+                        )
+                    }
+                    
+                    // Default Categories Section
+                    ForEach(onboardingState.categoryManager.defaultCategories) { category in
+                        CategoryRowWithAmount(
+                            category: category, 
+                            isEditable: false,
+                            onboardingState: onboardingState,
+                            onDelete: {
+                                onboardingState.categoryManager.removeCategory(category)
+                            }
+                        )
+                    }
+                    
+                    // Bottom spacing for navigation buttons
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(height: 120)
+                }
+                .padding(.horizontal, 16)
+            }
         }
         .background(theme.colors.background)
         .sheet(isPresented: $showingAddCategory) {
@@ -144,12 +155,10 @@ struct CategoryRow: View {
                 
                 // Category Type Badge
                 if category.isDefault {
-                    Text("Default")
-                        .font(.caption)
+                    DSText("Default", font: .dsCaption, color: theme.colors.secondaryText)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(theme.colors.secondaryText.opacity(0.1))
-                        .foregroundColor(theme.colors.secondaryText)
                         .cornerRadius(8)
                 }
                 
@@ -160,10 +169,11 @@ struct CategoryRow: View {
                             .font(.title3)
                             .foregroundColor(theme.colors.secondaryText)
                     }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 16)
     }
 }
 
@@ -183,14 +193,19 @@ struct AddCategorySheet: View {
                 VStack(alignment: .leading, spacing: 12) {
                     DSText("Category Name", font: .dsHeadline)
                     DSTextField("Enter category name", text: $categoryName)
+                        .onChange(of: categoryName) { _, newValue in
+                            if newValue.count > 15 {
+                                categoryName = String(newValue.prefix(15))
+                            }
+                        }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 16)
                 .padding(.top, 24)
                 
                 // Color Selection
                 VStack(alignment: .leading, spacing: 12) {
                     DSText("Category Color", font: .dsHeadline)
-                        .padding(.horizontal, 24)
+                        .padding(.horizontal, 16)
                     
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 16) {
                         ForEach(availableColors, id: \.id) { color in
@@ -210,7 +225,7 @@ struct AddCategorySheet: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 16)
                 }
                 
                 Spacer()
@@ -231,6 +246,126 @@ struct AddCategorySheet: View {
                 }
             }
         }
+    }
+}
+
+struct CategoryRowWithAmount: View {
+    let category: Category
+    let isEditable: Bool
+    let onboardingState: OnboardingState
+    let onDelete: (() -> Void)?
+    @State private var amount: String = ""
+    
+    @Environment(\.appTheme) private var theme
+    
+    init(category: Category, isEditable: Bool, onboardingState: OnboardingState, onDelete: (() -> Void)? = nil) {
+        self.category = category
+        self.isEditable = isEditable
+        self.onboardingState = onboardingState
+        self.onDelete = onDelete
+    }
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            // Color Border
+            Rectangle()
+                .fill(category.color.color)
+                .frame(width: 8)
+                .cornerRadius(8, corners: [.topLeft, .bottomLeft])
+            
+            HStack(spacing: 16) {
+                // Category Name
+                VStack(alignment: .leading, spacing: 2) {
+                    DSText(category.name, font: .dsHeadline)
+                    if isEditable {
+                        DSText("Custom", font: .dsCaption, color: theme.colors.secondaryText)
+                    } else {
+                        DSText("Default", font: .dsCaption, color: theme.colors.secondaryText)
+                    }
+                }
+                
+                Spacer()
+                
+                // Amount Input Field
+                TextField("0.00", text: $amount)
+                    .font(.system(size: 16))
+                    .foregroundColor(theme.colors.primaryText)
+                    .keyboardType(.decimalPad)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 8)
+                    .frame(width: 100)
+                    .background(theme.colors.card)
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(theme.colors.secondaryText, lineWidth: 1)
+                    )
+                    .accentColor(theme.colors.primaryText)
+                    .onChange(of: amount) { _, newValue in
+                        let numericValue = Double(newValue) ?? 0.0
+                        onboardingState.updateCategoryAmount(categoryId: category.id.uuidString, amount: numericValue)
+                    }
+                
+                // Delete Button for all categories
+                Button(action: { onDelete?() }) {
+                    Image(systemName: "trash")
+                        .font(.body)
+                        .foregroundColor(theme.colors.secondaryText)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+        }
+        .background(theme.colors.card)
+        .cornerRadius(8)
+    }
+}
+
+struct CategoryRowFullScreen: View {
+    let category: Category
+    let isEditable: Bool
+    let onDelete: (() -> Void)?
+    
+    @Environment(\.appTheme) private var theme
+    
+    init(category: Category, isEditable: Bool, onDelete: (() -> Void)? = nil) {
+        self.category = category
+        self.isEditable = isEditable
+        self.onDelete = onDelete
+    }
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Color Indicator
+            Circle()
+                .fill(category.color.color)
+                .frame(width: 24, height: 24)
+            
+            // Category Name
+            VStack(alignment: .leading, spacing: 2) {
+                DSText(category.name, font: .dsHeadline)
+                if isEditable {
+                    DSText("Custom", font: .dsCaption, color: theme.colors.secondaryText)
+                } else {
+                    DSText("Default", font: .dsCaption, color: theme.colors.secondaryText)
+                }
+            }
+            
+            Spacer()
+            
+            // Delete Button for editable categories
+            if isEditable {
+                Button(action: { onDelete?() }) {
+                    Image(systemName: "trash")
+                        .font(.body)
+                        .foregroundColor(theme.colors.secondaryText)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+        .background(theme.colors.card)
     }
 }
 

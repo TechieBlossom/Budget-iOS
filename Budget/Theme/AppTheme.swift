@@ -25,19 +25,22 @@ struct ThemeColors {
     let secondaryText: Color
     let background: Color
     let card: Color
+    let accent: Color
     
     static let light = ThemeColors(
         primaryText: Color(hex: "402D31"),
         secondaryText: Color(hex: "5D4147"),
         background: Color(hex: "D5D5D5"),
-        card: Color(hex: "F2F2F2")
+        card: Color(hex: "F2F2F2"),
+        accent: Color(hex: "F2CDAC")
     )
     
     static let dark = ThemeColors(
         primaryText: Color(hex: "402D31"),
         secondaryText: Color(hex: "5D4147"),
         background: Color(hex: "D5D5D5"),
-        card: Color(hex: "F2F2F2")
+        card: Color(hex: "F2F2F2"),
+        accent: Color(hex: "F2CDAC")
     )
 }
 

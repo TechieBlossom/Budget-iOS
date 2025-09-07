@@ -27,10 +27,12 @@ Budget/
 │   ├── Currency.swift         # Currency selection model
 │   ├── Category.swift         # Category with color assignment
 │   ├── BudgetPeriod.swift     # Date calculation logic
-│   └── OnboardingState.swift  # Flow state management
+│   ├── OnboardingState.swift  # Flow state management
+│   ├── Budget.swift           # Budget data model with totals/formatting
+│   └── Transaction.swift      # Transaction model for expenses
 ├── Views/
 │   ├── Onboarding/            # 4-step onboarding flow
-│   └── Main/                  # Main app views
+│   └── Main/                  # Budget overview and category cards
 ├── ViewModels/                # ObservableObject classes
 ├── BudgetApp.swift           # App entry point
 └── ContentView.swift         # Navigation coordinator
@@ -72,6 +74,22 @@ xcodebuild -scheme Budget -only-testing:BudgetUITests test
 
 ## Design System Requirements
 
+### CRITICAL: Component Usage Enforcement
+**NEVER create new UI components or use SwiftUI primitives directly. ALWAYS use existing DS (Design System) components:**
+
+#### Required Components (Use ONLY These)
+- **DSText**: All text rendering - replaces Text, Label
+- **DSButton**: All buttons - replaces Button 
+- **DSSquareButton**: Navigation buttons with progress indicators
+- **DSCard**: All card containers - replaces VStack/HStack with backgrounds
+- **DSTextField**: All text input - replaces TextField
+- **DSList**: All list displays - replaces List
+- **DSButtonCard**: Tappable card components
+
+#### Forbidden SwiftUI Primitives
+❌ **NEVER USE**: Text, Button, TextField, VStack/HStack with .background(), List, Card
+✅ **ALWAYS USE**: DSText, DSButton, DSCard, DSTextField, DSList
+
 ### Color Palette (STRICT - No Other Colors Allowed)
 ```swift
 // Theme Colors (change with light/dark theme)
@@ -85,16 +103,17 @@ Card: #F2F2F2
 ```
 
 ### Component Color Usage
-- **Button**: Background `Card`, Text `Primary Text`, Border `Secondary Text`
-- **TextField**: Background `Card`, Input `Primary Text`, Placeholder `Secondary Text`
-- **Card**: Background `Card`, Primary text `Primary Text`, Secondary text `Secondary Text`
-- **List**: Background `Background`, Items `Card`, Text follows hierarchy
+- **DSButton**: Uses theme colors automatically via @Environment(\.appTheme)
+- **DSTextField**: Background `Card`, Input `Primary Text`, Placeholder `Secondary Text`  
+- **DSCard**: Background `Card`, uses theme colors for content
+- **DSText**: References theme colors via color parameter
 
 ### Design System Rules
-1. **NEVER use system colors or any colors outside the 4 theme colors**
-2. **All components must reference theme colors only**
-3. **Category colors are separate and theme-independent**
-4. **Design system components must be reusable across entire app**
+1. **MANDATORY: Use only DS components - never create new UI components**
+2. **NEVER use system colors or any colors outside the 4 theme colors**
+3. **All DS components automatically reference theme colors via @Environment**
+4. **Category colors are separate and theme-independent**
+5. **When adding new functionality, extend existing DS components rather than creating new ones**
 
 ## Onboarding Flow Requirements
 
@@ -114,10 +133,27 @@ Card: #F2F2F2
 - Users can add max 6 additional categories
 - Color picker shows only unused colors from remaining palette
 
+## Architecture Patterns
+
+### State Management
+- **BudgetManager**: Central ObservableObject managing budget state and transactions
+- **@Environment(\.appTheme)**: Theme injection for consistent styling across components
+- **@StateObject/@ObservableObject**: Reactive UI updates for data changes
+
+### Main App Components
+- **BudgetOverviewCard**: Summary card showing total budget, spent, remaining with vertical progress
+- **CategoryExpendableCard**: Expandable category cards showing transactions and progress bars
+- **TransactionRow**: Individual transaction display within expanded categories
+
+### ViewModels Pattern
+- Each complex view has corresponding ViewModel as ObservableObject
+- Centralized business logic separate from UI components
+- Reactive updates via @Published properties
+
 ## Development Notes
 
 - Focus on performant, reactive SwiftUI architecture
-- UI-only implementation (no database integration yet)
-- Component reusability and readability are priorities
+- UI-only implementation (no database integration yet) 
+- Component reusability through strict DS component usage
 - Tests use Swift Testing framework (not XCTest)
-- Follow atomic design
+- Follow atomic design principles: DS components include atoms (smallest elements), molecules (combinations of atoms), organisms (combinations of atoms and molecules), and templates

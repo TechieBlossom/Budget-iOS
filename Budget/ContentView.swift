@@ -9,13 +9,17 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var hasCompletedOnboarding = false
+    @State private var userBudget: Budget?
     
     var body: some View {
         Group {
-            if hasCompletedOnboarding {
-                MainAppView()
+            if hasCompletedOnboarding, let budget = userBudget {
+                MainAppView(budget: budget)
             } else {
-                OnboardingCoordinator()
+                OnboardingCoordinator { completedBudget in
+                    userBudget = completedBudget
+                    hasCompletedOnboarding = true
+                }
             }
         }
         .environment(\.appTheme, AppTheme.shared)
@@ -23,42 +27,119 @@ struct ContentView: View {
 }
 
 struct MainAppView: View {
+    let budget: Budget
     @Environment(\.appTheme) private var theme
+    @State private var budgetManager: BudgetManager
+    @State private var expandedCategories: Set<UUID> = []
+    @State private var showingAddTransaction = false
+    
+    init(budget: Budget) {
+        self.budget = budget
+        self._budgetManager = State(initialValue: BudgetManager(budget: budget))
+    }
     
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
+        NavigationStack {
+            VStack(spacing: 0) {
+            // Top section with budget name
+            HStack {
+                Spacer()
+                DSText(budgetManager.budget.budgetName, font: .dsHeadline, color: theme.colors.primaryText)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 24)
             
-            DSText("Budget App", font: .dsLargeTitle)
-                .multilineTextAlignment(.center)
-            
-            DSText("Main app interface will be implemented here", font: .dsBody, color: theme.colors.secondaryText)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-            
-            DSCard {
-                VStack(spacing: 16) {
-                    DSText("Onboarding Complete! 🎉", font: .dsHeadline)
-                    DSText("The main budget tracking interface will be built next.", font: .dsBody)
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Budget Section
+                    VStack(spacing: 16) {
+                        // Section Header
+                        HStack {
+                            DSText("Budget", font: .dsTitle, color: theme.colors.primaryText)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        
+                        // Budget Overview Card
+                        BudgetOverviewCard(budgetManager: budgetManager)
+                            .padding(.horizontal, 16)
+                    }
+                    
+                    // Spends Section
+                    VStack(spacing: 16) {
+                        // Section Header
+                        HStack {
+                            DSText("Spends", font: .dsTitle, color: theme.colors.primaryText)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        
+                        // Category Cards
+                        LazyVStack(spacing: 16) {
+                            ForEach(budgetManager.budget.categories) { category in
+                                CategoryExpendableCard(
+                                    category: category,
+                                    budgetManager: budgetManager,
+                                    isExpanded: expandedCategories.contains(category.id)
+                                ) {
+                                    toggleExpansion(for: category)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                    
+                    // Bottom spacing
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(height: 40)
                 }
             }
-            .padding(.horizontal, 24)
-            
-            Spacer()
-            
-            DSButton("Reset to Onboarding (Demo)", style: .outline) {
-                // This is just for demo purposes
-                UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
-                // In a real app, you'd navigate back to onboarding
-            }
-            .padding(.horizontal, 24)
-            
-            Spacer()
         }
         .background(theme.colors.background)
+        .navigationDestination(isPresented: $showingAddTransaction) {
+            AddTransactionSheet(
+                categories: budgetManager.budget.categories,
+                currency: budgetManager.budget.currency,
+                budgetPeriod: budgetManager.budget.period
+            ) { transaction in
+                budgetManager.addTransaction(transaction)
+                showingAddTransaction = false
+            }
+        }
+        .overlay(
+            // Floating Action Button
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    DSIconButton(type: .add) {
+                        showingAddTransaction = true
+                    }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 16)
+                }
+            }
+        )
+        }
+    }
+    
+    private func toggleExpansion(for category: Category) {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            if expandedCategories.contains(category.id) {
+                expandedCategories.remove(category.id)
+            } else {
+                expandedCategories.insert(category.id)
+            }
+        }
     }
 }
 
 #Preview {
     ContentView()
+}
+
+#Preview("MainApp") {
+    MainAppView(budget: Budget.createSample())
 }
