@@ -43,25 +43,51 @@ class FontManager {
             print("🔍 Found font with explicit extension: \(fontName)")
         }
         
-        guard let url = fontURL,
-              let fontDataProvider = CGDataProvider(url: url as CFURL),
-              let font = CGFont(fontDataProvider) else {
-            print("❌ Failed to load font: \(fontName)")
+        guard let url = fontURL else {
+            print("❌ Failed to find font: \(fontName)")
             print("   Bundle path: \(Bundle.main.bundlePath)")
             print("   Looking for: \(fontName)")
             return
         }
         
-        var error: Unmanaged<CFError>?
-        let success = CTFontManagerRegisterGraphicsFont(font, &error)
-        
-        if success {
-            if let postScriptName = font.postScriptName {
-                print("✅ Successfully registered font: \(postScriptName)")
+        // Use modern API for iOS 13+
+        if #available(iOS 13.0, *) {
+            var error: Unmanaged<CFError>?
+            let success = CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)
+            
+            if success {
+                // Get font name for logging
+                if let fontDataProvider = CGDataProvider(url: url as CFURL),
+                   let font = CGFont(fontDataProvider),
+                   let postScriptName = font.postScriptName {
+                    print("✅ Successfully registered font: \(postScriptName)")
+                } else {
+                    print("✅ Successfully registered font: \(fontName)")
+                }
+            } else {
+                if let error = error?.takeUnretainedValue() {
+                    print("❌ Error registering font \(fontName): \(error)")
+                }
             }
         } else {
-            if let error = error?.takeUnretainedValue() {
-                print("❌ Error registering font \(fontName): \(error)")
+            // Fallback for older iOS versions
+            guard let fontDataProvider = CGDataProvider(url: url as CFURL),
+                  let font = CGFont(fontDataProvider) else {
+                print("❌ Failed to load font data: \(fontName)")
+                return
+            }
+            
+            var error: Unmanaged<CFError>?
+            let success = CTFontManagerRegisterGraphicsFont(font, &error)
+            
+            if success {
+                if let postScriptName = font.postScriptName {
+                    print("✅ Successfully registered font: \(postScriptName)")
+                }
+            } else {
+                if let error = error?.takeUnretainedValue() {
+                    print("❌ Error registering font \(fontName): \(error)")
+                }
             }
         }
     }

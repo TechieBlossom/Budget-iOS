@@ -7,6 +7,7 @@ struct AddTransactionSheet: View {
     let categories: [Category]
     let currency: Currency
     let budgetPeriod: BudgetPeriod
+    let budgetName: String
     let onAddTransaction: (Transaction) -> Void
     
     @State private var name: String = ""
@@ -17,20 +18,13 @@ struct AddTransactionSheet: View {
     
     var body: some View {
         return VStack(spacing: 0) {
-            // Header with back button and title
-            VStack(spacing: 16) {
-                HStack(spacing: 16) {
-                    DSIconButton(type: .back) {
-                        dismiss()
-                    }
-                    DSText("Add Expense", font: .dsTitle, color: theme.colors.primaryText)
-                        .fontWeight(.medium)
-                    Spacer()
+            DSHeader(
+                title: "Add Expense",
+                subtitle: budgetName,
+                onBack: {
+                    dismiss()
                 }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 24)
+            )
                 
                 ScrollView {
                     VStack(spacing: 24) {
@@ -85,13 +79,13 @@ struct AddTransactionSheet: View {
                     Divider()
                         .background(theme.colors.secondaryText.opacity(0.2))
                     
-                    DSButton("Save", style: .primary) {
+                    DSButton("Save", style: .primary, fullWidth: true) {
                         saveTransaction()
                     }
                     .disabled(!isFormValid)
                     .opacity(isFormValid ? 1.0 : 0.6)
-                    .padding(.horizontal, 16)
                     .padding(.vertical, 16)
+                    .padding(.horizontal, 16)
                     .background(theme.colors.background)
                 }
         }
@@ -275,10 +269,12 @@ struct DateCell: View {
 }
 
 #Preview {
-    AddTransactionSheet(
+    let budgetPeriod = BudgetPeriod(startDate: Date())
+    return AddTransactionSheet(
         categories: Category.createDefault(),
         currency: Currency(code: "USD", name: "US Dollar", symbol: "$"),
-        budgetPeriod: BudgetPeriod(startDate: Date())
+        budgetPeriod: budgetPeriod,
+        budgetName: budgetPeriod.name
     ) { transaction in
         print("Added transaction: \(transaction)")
     }

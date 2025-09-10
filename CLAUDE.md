@@ -31,11 +31,11 @@ Budget/
 │   ├── Budget.swift           # Budget data model with totals/formatting
 │   └── Transaction.swift      # Transaction model for expenses
 ├── Views/
-│   ├── Onboarding/            # 4-step onboarding flow
-│   └── Main/                  # Budget overview and category cards
+│   ├── Onboarding/            # 4-step onboarding flow (OnboardingCoordinator)
+│   └── Main/                  # Budget overview, category cards, and MainAppView coordinator
 ├── ViewModels/                # ObservableObject classes
 ├── BudgetApp.swift           # App entry point
-└── ContentView.swift         # Navigation coordinator
+└── ContentView.swift         # Root navigation coordinator
 ```
 
 ## Development Commands
@@ -124,13 +124,23 @@ Card: #F2F2F2
 4. **Categories**: Default 9 categories + ability to add up to 6 more with color picker
 
 ### Budget Naming Logic
-- If end date ≤ 10th of current month → Previous month budget
-- Otherwise → Current month budget
+**Monthly Budgets:**
+- If start date is in the future → Previous month budget (auto-shifted back 1 month)
+- If start date is today or in the past → Current month budget
+
+**Custom Budgets:**
+- Same month: "Sep 5-15, 2024" format
+- Different months: "Aug 28 - Sep 15, 2024" format
+
+**Auto-Shifting Behavior:**
+- Future start dates automatically shift back 1 month for better usability
+- Both start and end dates are shifted to maintain duration
+- `wasAutoShifted` property tracks if shifting occurred
 
 ### Category Management
-- 9 Default categories: Housing, Healthcare, Transportation, Utility, Groceries, Food & Dining, Entertainment, Medical, Others
+- 8 Default categories: Housing, Healthcare, Transportation, Utility, Groceries, Food & Dining, Entertainment, Others
 - Each has pre-assigned color from 15-color palette
-- Users can add max 6 additional categories
+- Users can add max 7 additional categories (formerly Medical category is now available for users)
 - Color picker shows only unused colors from remaining palette
 
 ## Architecture Patterns
@@ -139,6 +149,11 @@ Card: #F2F2F2
 - **BudgetManager**: Central ObservableObject managing budget state and transactions
 - **@Environment(\.appTheme)**: Theme injection for consistent styling across components
 - **@StateObject/@ObservableObject**: Reactive UI updates for data changes
+
+### View Coordinators
+- **ContentView**: Root navigation coordinator managing onboarding state and budget manager initialization
+- **OnboardingCoordinator**: Manages 4-step onboarding flow until budget creation
+- **MainAppView**: Main app coordinator handling budget overview, category management, and transaction flow
 
 ### Main App Components
 - **BudgetOverviewCard**: Summary card showing total budget, spent, remaining with vertical progress

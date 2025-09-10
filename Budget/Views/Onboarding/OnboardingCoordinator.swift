@@ -21,6 +21,9 @@ struct OnboardingCoordinator: View {
                         WelcomeView(onboardingState: onboardingState)
                     case .currency:
                         CurrencySelectionView(onboardingState: onboardingState)
+                    case .budgetTypeSelection:
+                        // Skip this step since budget type selection is now part of DateSelectionView
+                        DateSelectionView(onboardingState: onboardingState)
                     case .dateSelection:
                         DateSelectionView(onboardingState: onboardingState)
                     case .categorySetup:

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CategoryExpendableCard: View {
     let category: Category
-    let budgetManager: BudgetManager
+    let budgetManager: any BudgetManagerProtocol
     let isExpanded: Bool
     let onToggle: () -> Void
     
@@ -39,10 +39,10 @@ struct CategoryExpendableCard: View {
                         .frame(width: 8)
                         .cornerRadius(8, corners: [.topLeft, isExpanded ? [] : .bottomLeft])
                     
-                    VStack(spacing: 16) {
+                    VStack(spacing: 8) {
                         // Category header
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
+                        HStack(alignment: .bottom) {
+                            VStack(alignment: .leading, spacing: 16) {
                                 DSText(category.name, font: .dsHeadline, color: theme.colors.primaryText)
                                 HStack(alignment: .bottom, spacing: 4) {
                                     DSText(String(format: "%.2f", spentAmount), font: .dsBody, color: theme.colors.primaryText)
@@ -60,9 +60,11 @@ struct CategoryExpendableCard: View {
                                     .foregroundColor(theme.colors.secondaryText)
                                     .rotationEffect(.degrees(isExpanded ? 180 : 0))
                                 
-                                // Remaining percentage
-                                DSText("\(Int(remainingPercentage * 100))%", font: .dsCaption, color: theme.colors.secondaryText)
-                                    .animation(.easeInOut(duration: 0.8), value: remainingPercentage)
+                                Spacer()
+                                
+                                // Spent percentage - aligned with spent amount
+                                DSText("\(Int(spentPercentage * 100))%", font: .dsCaption, color: theme.colors.secondaryText)
+                                    .animation(.easeInOut(duration: 0.8), value: spentPercentage)
                             }
                         }
                         
@@ -93,7 +95,7 @@ struct CategoryExpendableCard: View {
                 if isExpanded {
                     VStack(spacing: 0) {
                         // Recent transactions
-                        let recentTransactions = budgetManager.recentTransactions(for: category)
+                        let recentTransactions = budgetManager.recentTransactions(for: category, limit: 5)
                         
                         if recentTransactions.isEmpty {
                             VStack(spacing: 8) {
@@ -108,7 +110,7 @@ struct CategoryExpendableCard: View {
                                     transaction: transaction,
                                     currency: budgetManager.budget.currency,
                                     onDelete: {
-                                        budgetManager.deleteTransaction(transaction)
+                                        _ = budgetManager.deleteTransaction(transaction)
                                     }
                                 )
                                 
@@ -174,9 +176,10 @@ struct TransactionRow: View {
 
 #Preview {
     let budget = Budget.createSample()
-    let budgetManager = BudgetManager(budget: budget)
+    // Preview with mock data - would need ModelContext in real app
+    let budgetManager = MockBudgetManager(budget: budget)
     
-    return VStack(spacing: 16) {
+    VStack(spacing: 16) {
         CategoryExpendableCard(
             category: budget.categories.first!,
             budgetManager: budgetManager,

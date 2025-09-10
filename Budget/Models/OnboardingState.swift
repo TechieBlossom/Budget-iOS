@@ -5,8 +5,9 @@ class OnboardingState {
     enum Step: Int, CaseIterable {
         case welcome = 0
         case currency = 1
-        case dateSelection = 2
-        case categorySetup = 3
+        case budgetTypeSelection = 2
+        case dateSelection = 3
+        case categorySetup = 4
         
         var title: String {
             switch self {
@@ -14,6 +15,8 @@ class OnboardingState {
                 return "Welcome"
             case .currency:
                 return "Select Currency"
+            case .budgetTypeSelection:
+                return "Budget Type"
             case .dateSelection:
                 return "Budget Period"
             case .categorySetup:
@@ -41,10 +44,34 @@ class OnboardingState {
     var selectedCurrency: Currency?
     var currencySearchText = ""
     
+    // Budget type step
+    var selectedBudgetType: BudgetType = .monthly
+    
     // Date selection step
     var selectedStartDate = Date()
+    var selectedEndDate: Date?
+    var budgetName = ""
+    
     var budgetPeriod: BudgetPeriod {
-        BudgetPeriod(startDate: selectedStartDate)
+        switch selectedBudgetType {
+        case .custom:
+            guard let endDate = selectedEndDate else {
+                // Fallback to monthly if no end date
+                return BudgetPeriod(type: .monthly, startDate: selectedStartDate, customName: budgetName.isEmpty ? nil : budgetName)
+            }
+            
+            if budgetName.isEmpty {
+                // Create a temporary budget period to get the auto-shifted dates, then generate name from final dates
+                let tempPeriod = BudgetPeriod(type: .custom, startDate: selectedStartDate, endDate: endDate, customName: "temp")
+                let finalName = BudgetPeriod.generateCustomName(for: tempPeriod.startDate, endDate: tempPeriod.endDate)
+                return BudgetPeriod(type: .custom, startDate: selectedStartDate, endDate: endDate, customName: finalName)
+            } else {
+                return BudgetPeriod(type: .custom, startDate: selectedStartDate, endDate: endDate, customName: budgetName)
+            }
+        case .monthly:
+            let name = budgetName.isEmpty ? nil : budgetName
+            return BudgetPeriod(type: .monthly, startDate: selectedStartDate, customName: name)
+        }
     }
     
     // Category step
@@ -55,14 +82,24 @@ class OnboardingState {
     func goToNextStep() {
         let nextRawValue = currentStep.rawValue + 1
         if let nextStep = Step(rawValue: nextRawValue) {
-            currentStep = nextStep
+            // Skip budgetTypeSelection step since it's now part of DateSelectionView
+            if nextStep == .budgetTypeSelection {
+                currentStep = .dateSelection
+            } else {
+                currentStep = nextStep
+            }
         }
     }
     
     func goToPreviousStep() {
         let previousRawValue = currentStep.rawValue - 1
         if let previousStep = Step(rawValue: previousRawValue) {
-            currentStep = previousStep
+            // Skip budgetTypeSelection step since it's now part of DateSelectionView
+            if previousStep == .budgetTypeSelection {
+                currentStep = .currency
+            } else {
+                currentStep = previousStep
+            }
         }
     }
     
@@ -76,8 +113,13 @@ class OnboardingState {
             return userChoice != nil
         case .currency:
             return selectedCurrency != nil
+        case .budgetTypeSelection:
+            return true // Budget type is always valid (defaults to monthly)
         case .dateSelection:
-            return true // Date is always valid
+            if selectedBudgetType == .custom {
+                return selectedEndDate != nil && selectedEndDate! > selectedStartDate
+            }
+            return true // Date is always valid for monthly
         case .categorySetup:
             return true // Can proceed with default categories
         }
@@ -118,6 +160,7 @@ class OnboardingState {
         print("Onboarding completed with:")
         print("Choice: \(userChoice?.description ?? "none")")
         print("Currency: \(selectedCurrency?.displayName ?? "none")")
+        print("Budget Type: \(selectedBudgetType.displayName)")
         print("Budget Period: \(budgetPeriod.name)")
         print("Categories: \(categoryManager.categories.count)")
         print("Total Budget: \(formattedTotalBudget)")

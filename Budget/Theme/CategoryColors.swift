@@ -8,7 +8,7 @@ enum CategoryColor: String, CaseIterable, Identifiable {
     case color5 = "#FFEAA7"  // Groceries
     case color6 = "#DDA0DD"  // Food & Dining
     case color7 = "#98D8C8"  // Entertainment
-    case color8 = "#F7DC6F"  // Medical
+    case color8 = "#F7DC6F"  // Available for user categories
     case color9 = "#BB8FCE"  // Others
     case color10 = "#F8C291"
     case color11 = "#70A1FF"
@@ -18,6 +18,8 @@ enum CategoryColor: String, CaseIterable, Identifiable {
     case color15 = "#FD79A8"
     
     var id: String { rawValue }
+    
+    var hex: String { rawValue }
     
     var color: Color {
         Color(hex: rawValue)
@@ -31,12 +33,11 @@ enum CategoryColor: String, CaseIterable, Identifiable {
         .groceries: .color5,
         .foodDining: .color6,
         .entertainment: .color7,
-        .medical: .color8,
         .others: .color9
     ]
     
     static var availableForUserCategories: [CategoryColor] {
-        [.color10, .color11, .color12, .color13, .color14, .color15]
+        [.color8, .color10, .color11, .color12, .color13, .color14, .color15]
     }
     
     static func unusedColors(excluding usedColors: [CategoryColor]) -> [CategoryColor] {
@@ -52,7 +53,6 @@ enum DefaultCategory: String, CaseIterable {
     case groceries = "Groceries"
     case foodDining = "Food & Dining"
     case entertainment = "Entertainment"
-    case medical = "Medical"
     case others = "Others"
     
     var displayName: String {

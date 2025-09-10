@@ -53,7 +53,7 @@ struct CurvedClipShape: Shape {
 }
 
 struct BudgetOverviewCard: View {
-    let budgetManager: BudgetManager
+    let budgetManager: any BudgetManagerProtocol
     @Environment(\.appTheme) private var theme
     
     var body: some View {
@@ -81,13 +81,10 @@ struct BudgetOverviewCard: View {
                             }
                         }
                         .padding(.bottom, 24)
-                        
-                        // Date range
-                        DSText(budgetManager.budget.period.formattedDateRange, font: .dsCaption, color: theme.colors.secondaryText)
                     }
                     .padding(.leading, 16)
                     .padding(.trailing, 8)
-                    .frame(width: cardGeometry.size.width * 0.6, alignment: .leading)
+                    .frame(width: cardGeometry.size.width * 0.7, alignment: .leading)
                     
                     // Right section (30% width) - Vertical Progress with curved clip
                     VStack {
@@ -98,12 +95,11 @@ struct BudgetOverviewCard: View {
                                     // Background
                                     Rectangle()
                                         .fill(theme.colors.accent)
-                                        .frame(width: .infinity)
                                     
                                     // Progress fill (from bottom to top)
                                     Rectangle()
                                         .fill(theme.colors.primaryText)
-                                        .frame(width: .infinity, height: progressGeometry.size.height * budgetManager.spentPercentage)
+                                        .frame(height: max(0, progressGeometry.size.height * min(1.0, max(0, budgetManager.spentPercentage))))
                                         .animation(.easeInOut(duration: 0.8), value: budgetManager.spentPercentage)
                                     
                                     DSText("\(Int(budgetManager.spentPercentage * 100))%", font: .dsTitle, color: theme.colors.card)
@@ -113,17 +109,17 @@ struct BudgetOverviewCard: View {
                         
                         }
                     }
-                    .frame(width: cardGeometry.size.width * 0.4)
+                    .frame(width: cardGeometry.size.width * 0.3)
                     .clipShape(CurvedClipShape())
                 }
             }
-            .frame(height: 200)
+            .frame(height: 150)
         }
     }
 }
 
 #Preview {
-    BudgetOverviewCard(budgetManager: BudgetManager(budget: Budget.createSample()))
+    BudgetOverviewCard(budgetManager: MockBudgetManager(budget: Budget.createSample()))
         .padding()
         .background(AppTheme.shared.colors.background)
 }

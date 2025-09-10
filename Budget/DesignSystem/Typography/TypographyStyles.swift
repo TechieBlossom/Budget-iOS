@@ -14,6 +14,7 @@ struct TypographyStyles {
     
     static let largeTitle = inriaSans(size: 34, weight: .bold)
     static let title = inriaSans(size: 28, weight: .bold)
+    static let smallTitle = inriaSans(size: 22, weight: .bold)
     static let headline = inriaSans(size: 17, weight: .bold)
     static let body = inriaSans(size: 17)
     static let subtitle = inriaSans(size: 14)
@@ -23,6 +24,7 @@ struct TypographyStyles {
 extension Font {
     static var dsLargeTitle: Font { TypographyStyles.largeTitle }
     static var dsTitle: Font { TypographyStyles.title }
+    static var dsSmallTitle: Font { TypographyStyles.smallTitle }
     static var dsHeadline: Font { TypographyStyles.headline }
     static var dsBody: Font { TypographyStyles.body }
     static var dsSubtitle: Font { TypographyStyles.subtitle }

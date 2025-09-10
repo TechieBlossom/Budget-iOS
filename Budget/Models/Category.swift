@@ -1,12 +1,20 @@
 import Foundation
 
 struct Category: Identifiable, Hashable {
-    let id = UUID()
+    let id: UUID
     let name: String
     let color: CategoryColor
     let isDefault: Bool
     
     init(name: String, color: CategoryColor, isDefault: Bool = false) {
+        self.id = UUID()
+        self.name = name
+        self.color = color
+        self.isDefault = isDefault
+    }
+    
+    init(id: UUID, name: String, color: CategoryColor, isDefault: Bool = false) {
+        self.id = id
         self.name = name
         self.color = color
         self.isDefault = isDefault

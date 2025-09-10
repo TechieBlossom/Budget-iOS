@@ -8,13 +8,15 @@ struct DSButton: View {
     
     let title: String
     let style: Style
+    let fullWidth: Bool
     let action: () -> Void
     
     @Environment(\.appTheme) private var theme
     
-    init(_ title: String, style: Style = .primary, action: @escaping () -> Void) {
+    init(_ title: String, style: Style = .primary, fullWidth: Bool = false, action: @escaping () -> Void) {
         self.title = title
         self.style = style
+        self.fullWidth = fullWidth
         self.action = action
     }
     
@@ -22,6 +24,7 @@ struct DSButton: View {
         Button(action: action) {
             DSText(title, font: .dsBody, color: textColor)
                 .fontWeight(.medium)
+                .frame(maxWidth: fullWidth ? .infinity : nil)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
                 .background(backgroundColor)

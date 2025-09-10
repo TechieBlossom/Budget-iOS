@@ -1,13 +1,22 @@
 import Foundation
 
 struct Budget: Identifiable {
-    let id = UUID()
+    let id: UUID
     let period: BudgetPeriod
     let currency: Currency
     let categories: [Category]
     let categoryAmounts: [String: Double]
     
     init(period: BudgetPeriod, currency: Currency, categories: [Category], categoryAmounts: [String: Double]) {
+        self.id = UUID()
+        self.period = period
+        self.currency = currency
+        self.categories = categories
+        self.categoryAmounts = categoryAmounts
+    }
+    
+    init(id: UUID, period: BudgetPeriod, currency: Currency, categories: [Category], categoryAmounts: [String: Double]) {
+        self.id = id
         self.period = period
         self.currency = currency
         self.categories = categories
@@ -23,9 +32,7 @@ struct Budget: Identifiable {
     }
     
     var budgetName: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM yyyy"
-        return formatter.string(from: period.startDate)
+        return period.name
     }
     
     static func createSample() -> Budget {
