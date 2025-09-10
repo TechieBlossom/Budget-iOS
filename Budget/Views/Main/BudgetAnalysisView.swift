@@ -283,37 +283,7 @@ struct OverviewHeroCard: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
                     
-                    // Progress bar at bottom
-                    VStack(spacing: 8) {
-                        GeometryReader { geometry in
-                            ZStack(alignment: .leading) {
-                                // Background
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(theme.colors.secondaryText.opacity(0.2))
-                                    .frame(height: 8)
-                                
-                                // Spent progress
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [
-                                                CategoryColor.color1.color,
-                                                CategoryColor.color3.color,
-                                                CategoryColor.color5.color,
-                                                CategoryColor.color6.color
-                                            ]),
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                    .frame(width: geometry.size.width * animatedSpentPercentage, height: 8)
-                                    .animation(.easeInOut(duration: 1.0), value: animatedSpentPercentage)
-                            }
-                        }
-                        .frame(height: 8)
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
+                    
                 }
             }
             .frame(height: 160)
@@ -419,13 +389,7 @@ struct InsightsSection: View {
                 )
             }
             
-            let daysInPeriod = Calendar.current.dateComponents([.day], from: budgetManager.budget.period.startDate, to: budgetManager.budget.period.endDate).day ?? 1
-            let dailyAverage = budgetManager.totalSpent / Double(max(1, daysInPeriod))
-            InsightCard(
-                icon: "calendar",
-                title: "Daily Average",
-                description: String(format: "%.2f per day", dailyAverage)
-            )
+//            DailySpendingChart(budgetManager: budgetManager)
         }
     }
 }
@@ -453,6 +417,161 @@ struct InsightCard: View {
                 Spacer()
             }
         }
+    }
+}
+
+struct DailySpendingChart: View {
+    let budgetManager: any BudgetManagerProtocol
+    @Environment(\.appTheme) private var theme
+    @State private var selectedDate: Date? = nil
+    @State private var selectedAmount: Double = 0
+    @State private var animatedBars: [Double] = []
+    
+    private var dailyData: [(Date, Double)] {
+        let calendar = Calendar.current
+        let startDate = budgetManager.budget.period.startDate
+        let endDate = budgetManager.budget.period.endDate
+        
+        var data: [(Date, Double)] = []
+        var currentDate = startDate
+        
+        while currentDate <= endDate {
+            let dayTransactions = budgetManager.getAllTransactions().filter { transaction in
+                calendar.isDate(transaction.date, inSameDayAs: currentDate)
+            }
+            let dayTotal = dayTransactions.reduce(0) { $0 + $1.amount }
+            data.append((currentDate, dayTotal))
+            currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
+        }
+        
+        return data
+    }
+    
+    private var maxAmount: Double {
+        dailyData.map { $0.1 }.max() ?? 1.0
+    }
+    
+    private var averageAmount: Double {
+        let totalSpent = dailyData.reduce(0) { $0 + $1.1 }
+        return totalSpent / Double(max(1, dailyData.count))
+    }
+    
+    private var displayAmount: Double {
+        selectedAmount > 0 ? selectedAmount : averageAmount
+    }
+    
+    private var displayDate: String {
+        if let selectedDate = selectedDate {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "E, MMM d"
+            return formatter.string(from: selectedDate).uppercased()
+        } else {
+            return "DAILY AVERAGE"
+        }
+    }
+    
+    var body: some View {
+        DSCard {
+            VStack(spacing: 16) {
+                // Header with selected value
+                VStack(spacing: 4) {
+                    DSText(displayDate, font: .dsCaption, color: theme.colors.secondaryText)
+                    DSText(String(format: "%.0f", displayAmount), font: .dsLargeTitle, color: theme.colors.primaryText)
+                        .fontWeight(.bold)
+                        .animation(.easeInOut(duration: 0.2), value: displayAmount)
+                }
+                
+                // Chart area
+                VStack(spacing: 8) {
+                    // Bars chart
+                    GeometryReader { geometry in
+                        let barWidth = max(2, (geometry.size.width - CGFloat(dailyData.count - 1) * 2) / CGFloat(dailyData.count))
+                        let chartHeight = geometry.size.height
+                        
+                        ZStack(alignment: .bottom) {
+                            // Average line
+                            let averageY = chartHeight * (1 - (averageAmount / maxAmount))
+                            HStack {
+                                Rectangle()
+                                    .fill(theme.colors.secondaryText.opacity(0.3))
+                                    .frame(height: 1)
+                            }
+                            .offset(y: averageY - chartHeight/2)
+                            
+                            // Bars only
+                            HStack(alignment: .bottom, spacing: 2) {
+                                ForEach(Array(dailyData.enumerated()), id: \.offset) { index, dayData in
+                                    let (date, amount) = dayData
+                                    let barHeight = chartHeight * (animatedBars.indices.contains(index) ? animatedBars[index] : 0)
+                                    let isSelected = selectedDate != nil && Calendar.current.isDate(date, inSameDayAs: selectedDate!)
+                                    
+                                    Rectangle()
+                                        .fill(isSelected ? CategoryColor.color1.color : theme.colors.primaryText)
+                                        .frame(width: barWidth, height: max(1, barHeight))
+                                        .animation(.easeInOut(duration: 0.3), value: isSelected)
+                                        .onTapGesture {
+                                            withAnimation(.easeInOut(duration: 0.2)) {
+                                                if isSelected {
+                                                    selectedDate = nil
+                                                    selectedAmount = 0
+                                                } else {
+                                                    selectedDate = date
+                                                    selectedAmount = amount
+                                                }
+                                            }
+                                        }
+                                }
+                            }
+                        }
+                    }
+                    .frame(height: 100)
+                    
+                    // X-axis labels (separate from bars)
+                    HStack {
+                        ForEach(Array(dailyData.enumerated()), id: \.offset) { index, dayData in
+                            let (date, _) = dayData
+                            
+                            if index % max(1, dailyData.count / 6) == 0 {
+                                DSText(formatDateLabel(date), font: .dsCaption, color: theme.colors.secondaryText)
+                                    .multilineTextAlignment(.leading)
+                                    .lineLimit(1)
+                                Spacer()
+                            } else if index == dailyData.count - 1 {
+                                // Add final spacer to balance layout
+                                Spacer()
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            let barWidth = max(2, (UIScreen.main.bounds.width - 32 - CGFloat(dailyData.count - 1) * 2) / CGFloat(dailyData.count))
+                            let index = max(0, min(dailyData.count - 1, Int(value.location.x / (barWidth + 2))))
+                            let (date, amount) = dailyData[index]
+                            selectedDate = date
+                            selectedAmount = amount
+                        }
+                        .onEnded { _ in
+                            // Keep selection on drag end
+                        }
+                )
+            }
+        }
+        .onAppear {
+            // Animate bars on appear
+            animatedBars = Array(repeating: 0, count: dailyData.count)
+            withAnimation(.easeInOut(duration: 1.0)) {
+                animatedBars = dailyData.map { $0.1 / maxAmount }
+            }
+        }
+    }
+    
+    private func formatDateLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: date)
     }
 }
 

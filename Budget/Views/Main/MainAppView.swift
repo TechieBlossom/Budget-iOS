@@ -38,18 +38,11 @@ struct MainAppView: View {
                 VStack(spacing: 24) {
                     // Budget Section
                     VStack(spacing: 16) {
-                        // Section Header
-                        HStack {
-                            DSText("Budget", font: .dsSmallTitle, color: theme.colors.primaryText)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        
-                        // Budget Overview Card
+                        // Budget Overview Hero Card
                         Button(action: {
                             showingBudgetAnalysis = true
                         }) {
-                            BudgetOverviewCard(budgetManager: budgetManager)
+                            OverviewHeroCard(budgetManager: budgetManager)
                         }
                         .buttonStyle(PlainButtonStyle())
                         .padding(.horizontal, 16)
@@ -128,3 +121,7 @@ struct MainAppView: View {
         }
     }
 }
+
+// MARK: - Preserved Wavy Shape Components (for future use)
+// Note: CurvedClipShape and wavy progress components are preserved in BudgetOverviewCard.swift
+// Note: OverviewHeroCard is defined in BudgetAnalysisView.swift and reused here
