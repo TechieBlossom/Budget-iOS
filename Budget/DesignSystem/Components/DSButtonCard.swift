@@ -22,15 +22,15 @@ struct DSButtonCard: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.xs) {
                 DSText(title, font: .dsHeadline, color: titleColor)
                     .fontWeight(.medium)
-                
+
                 DSText(subtitle, font: .dsSubtitle, color: subtitleColor)
                     .multilineTextAlignment(.center)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .padding(.horizontal, DSSpacing.xl)
+            .padding(.vertical, DSSpacing.md)
             .frame(maxWidth: .infinity)
             .background(backgroundColor)
             .overlay(
@@ -45,32 +45,32 @@ struct DSButtonCard: View {
     private var backgroundColor: Color {
         switch style {
         case .primary:
-            return theme.colors.primaryText
+            return theme.colors.primary
         case .outline:
-            return theme.colors.card
+            return theme.colors.surface
         }
     }
-    
+
     private var titleColor: Color {
         switch style {
         case .primary:
-            return theme.colors.card
+            return .white
         case .outline:
-            return theme.colors.primaryText
+            return theme.colors.primary
         }
     }
-    
+
     private var subtitleColor: Color {
         switch style {
         case .primary:
-            return theme.colors.card.opacity(0.8)
+            return .white.opacity(0.9)
         case .outline:
-            return theme.colors.secondaryText
+            return theme.colors.textSecondary
         }
     }
-    
+
     private var borderColor: Color {
-        return theme.colors.primaryText
+        return theme.colors.primary
     }
     
     private var borderWidth: CGFloat {
@@ -79,10 +79,10 @@ struct DSButtonCard: View {
 }
 
 #Preview {
-    VStack(spacing: 16) {
+    VStack(spacing: DSSpacing.md) {
         DSButtonCard("GET STARTED", subtitle: "Begin with a fresh budget setup", style: .primary) {}
         DSButtonCard("IMPORT", subtitle: "Continue with existing budget data", style: .outline) {}
     }
-    .padding()
+    .padding(DSSpacing.md)
     .background(AppTheme.shared.colors.background)
 }

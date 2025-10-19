@@ -20,19 +20,19 @@ struct DSText: View {
     }
     
     private var textColor: Color {
-        return color ?? theme.colors.primaryText
+        return color ?? theme.colors.textPrimary
     }
 }
 
 #Preview {
-    VStack(alignment: .leading, spacing: 16) {
+    VStack(alignment: .leading, spacing: DSSpacing.md) {
         DSText("Large Title", font: .dsLargeTitle)
         DSText("Title", font: .dsTitle)
         DSText("Headline", font: .dsHeadline)
         DSText("Body text for regular content", font: .dsBody)
-        DSText("Secondary text for descriptions", font: .dsBody, color: AppTheme.shared.colors.secondaryText)
+        DSText("Secondary text for descriptions", font: .dsBody, color: AppTheme.shared.colors.textSecondary)
         DSText("Caption text for small details", font: .dsCaption)
     }
-    .padding()
+    .padding(DSSpacing.md)
     .background(AppTheme.shared.colors.background)
 }

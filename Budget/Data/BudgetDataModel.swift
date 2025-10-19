@@ -41,16 +41,20 @@ final class TransactionDataModel {
     var notes: String
     var date: Date
     var categoryId: UUID
-    
+    var isRecurring: Bool
+    var recurrenceType: String
+
     // Relationship to budget
     var budget: BudgetDataModel?
-    
-    init(transactionId: UUID, amount: Double, notes: String, date: Date, categoryId: UUID) {
+
+    init(transactionId: UUID, amount: Double, notes: String, date: Date, categoryId: UUID, isRecurring: Bool = false, recurrenceType: String = "None") {
         self.transactionId = transactionId
         self.amount = amount
         self.notes = notes
         self.date = date
         self.categoryId = categoryId
+        self.isRecurring = isRecurring
+        self.recurrenceType = recurrenceType
     }
 }
 
@@ -100,22 +104,27 @@ extension BudgetDataModel {
 
 extension TransactionDataModel {
     func toTransaction() -> Transaction {
+        let recurrence = RecurrenceType(rawValue: recurrenceType) ?? .none
         return Transaction(
             id: transactionId,
             amount: amount,
             notes: notes,
             date: date,
-            categoryId: categoryId
+            categoryId: categoryId,
+            isRecurring: isRecurring,
+            recurrenceType: recurrence
         )
     }
-    
+
     static func from(_ transaction: Transaction) -> TransactionDataModel {
         return TransactionDataModel(
             transactionId: transaction.id,
             amount: transaction.amount,
             notes: transaction.notes,
             date: transaction.date,
-            categoryId: transaction.categoryId
+            categoryId: transaction.categoryId,
+            isRecurring: transaction.isRecurring,
+            recurrenceType: transaction.recurrenceType.rawValue
         )
     }
 }
@@ -125,18 +134,23 @@ extension TransactionDataModel {
 struct CategoryData: Codable {
     let id: UUID
     let name: String
-    let colorHex: String
-    let isDefault: Bool
-    
-    init(from category: Category) {
-        self.id = category.id
-        self.name = category.name
-        self.colorHex = category.color.hex
-        self.isDefault = category.isDefault
+    let categoryGroup: String  // Store group as string
+    // Legacy fields for backward compatibility
+    let isDefault: Bool?  // Made optional for backward compatibility
+    let colorHex: String?
+    let type: String?
+
+    init(from subCategory: SubCategory) {
+        self.id = subCategory.id
+        self.name = subCategory.name
+        self.categoryGroup = subCategory.categoryGroup.rawValue
+        self.isDefault = nil  // No longer used
+        self.colorHex = nil  // No longer used
+        self.type = nil  // No longer used
     }
-    
-    func toCategory() -> Category {
-        let color = CategoryColor.allCases.first { $0.hex == colorHex } ?? .color1
-        return Category(id: id, name: name, color: color, isDefault: isDefault)
+
+    func toCategory() -> SubCategory {
+        let group = CategoryGroup(rawValue: categoryGroup) ?? .miscellaneous
+        return SubCategory(id: id, name: name, categoryGroup: group)
     }
 }

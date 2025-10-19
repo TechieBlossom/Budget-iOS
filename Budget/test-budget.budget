@@ -1,0 +1,497 @@
+{
+  "exportDate" : "2025-10-11T07:23:49Z",
+  "budgets" : [
+    {
+      "totalAmount" : 22408.33,
+      "id" : "12E23F18-A7CF-4A35-B8D1-7DCC0369E9E0",
+      "categoryAmounts" : {
+        "B026C003-1343-4E9E-8D27-2118BDC0D193" : 600,
+        "D745C352-1249-4A92-89CF-71FCC56A89FD" : 600,
+        "E105BB97-9C9C-4577-AA60-53ED530AA8D4" : 2000,
+        "165B9B37-8B8D-4BD7-B658-2C5B00C1D97E" : 500,
+        "135D950F-64F6-44C9-942E-A282683ED615" : 1500,
+        "1BAF4E3C-2FED-4D3F-A24F-413891632123" : 1700,
+        "0C922811-A37D-43D1-AB6A-57AF18CEE0B0" : 600,
+        "4FE2F330-33FD-4802-B385-7318283DF962" : 650,
+        "4C63959D-4A17-4A1F-BE48-B3BB31B5F9D8" : 7000,
+        "75758AAE-DFF1-4B70-B3D9-7DB9F8D2E146" : 1000,
+        "0782EB10-CFB3-4CD7-AD82-50F8661D3B7F" : 5958.33,
+        "90E8D279-50C1-4356-A11D-1BBE1C65BA89" : 300
+      },
+      "budgetName" : "October 2025 Budget",
+      "categories" : [
+        {
+          "color" : {
+            "red" : 1,
+            "green" : 0.41960784792900085,
+            "alpha" : 1,
+            "blue" : 0.41960784792900085
+          },
+          "isDefault" : true,
+          "name" : "Housing",
+          "id" : "0782EB10-CFB3-4CD7-AD82-50F8661D3B7F"
+        },
+        {
+          "color" : {
+            "red" : 0.3058823347091675,
+            "blue" : 0.7686274647712708,
+            "alpha" : 1,
+            "green" : 0.8039215803146362
+          },
+          "isDefault" : true,
+          "name" : "Healthcare",
+          "id" : "75758AAE-DFF1-4B70-B3D9-7DB9F8D2E146"
+        },
+        {
+          "color" : {
+            "alpha" : 1,
+            "red" : 0.2705882489681244,
+            "blue" : 0.8196078538894653,
+            "green" : 0.7176470756530762
+          },
+          "isDefault" : true,
+          "name" : "Transportation",
+          "id" : "0C922811-A37D-43D1-AB6A-57AF18CEE0B0"
+        },
+        {
+          "name" : "Utility",
+          "color" : {
+            "green" : 0.8078431487083435,
+            "red" : 0.5882353186607361,
+            "blue" : 0.7058823704719543,
+            "alpha" : 1
+          },
+          "id" : "1BAF4E3C-2FED-4D3F-A24F-413891632123",
+          "isDefault" : true
+        },
+        {
+          "name" : "Groceries",
+          "color" : {
+            "green" : 0.9176470637321472,
+            "alpha" : 1,
+            "red" : 1,
+            "blue" : 0.6549019813537598
+          },
+          "id" : "135D950F-64F6-44C9-942E-A282683ED615",
+          "isDefault" : true
+        },
+        {
+          "name" : "Food & Dining",
+          "color" : {
+            "red" : 0.8666666746139526,
+            "alpha" : 1,
+            "green" : 0.6274510622024536,
+            "blue" : 0.8666666746139526
+          },
+          "id" : "165B9B37-8B8D-4BD7-B658-2C5B00C1D97E",
+          "isDefault" : true
+        },
+        {
+          "name" : "Entertainment",
+          "color" : {
+            "red" : 0.5960784554481506,
+            "blue" : 0.7843137383460999,
+            "green" : 0.8470588326454163,
+            "alpha" : 1
+          },
+          "id" : "B026C003-1343-4E9E-8D27-2118BDC0D193",
+          "isDefault" : true
+        },
+        {
+          "name" : "Others",
+          "color" : {
+            "red" : 0.73333340883255,
+            "blue" : 0.8078431487083435,
+            "green" : 0.5607843399047852,
+            "alpha" : 1
+          },
+          "id" : "90E8D279-50C1-4356-A11D-1BBE1C65BA89",
+          "isDefault" : true
+        },
+        {
+          "name" : "Salon",
+          "color" : {
+            "blue" : 0.658823549747467,
+            "red" : 0.9921569228172302,
+            "green" : 0.4745098352432251,
+            "alpha" : 1
+          },
+          "id" : "4FE2F330-33FD-4802-B385-7318283DF962",
+          "isDefault" : false
+        },
+        {
+          "name" : "India transfer",
+          "color" : {
+            "green" : 0.6313725709915161,
+            "alpha" : 1,
+            "red" : 0.43921566009521484,
+            "blue" : 1
+          },
+          "id" : "4C63959D-4A17-4A1F-BE48-B3BB31B5F9D8",
+          "isDefault" : false
+        },
+        {
+          "name" : "Investments",
+          "color" : {
+            "red" : 0.48235297203063965,
+            "alpha" : 1,
+            "green" : 0.929411768913269,
+            "blue" : 0.6235294938087463
+          },
+          "id" : "D745C352-1249-4A92-89CF-71FCC56A89FD",
+          "isDefault" : false
+        },
+        {
+          "isDefault" : false,
+          "color" : {
+            "alpha" : 1,
+            "blue" : 0.4588235020637512,
+            "red" : 1,
+            "green" : 0.4627450704574585
+          },
+          "id" : "E105BB97-9C9C-4577-AA60-53ED530AA8D4",
+          "name" : "Clothing"
+        }
+      ],
+      "currency" : {
+        "symbol" : "AED",
+        "name" : "UAE Dirham",
+        "code" : "AED"
+      },
+      "period" : {
+        "endDate" : "2025-10-27T07:14:29Z",
+        "name" : "October 2025 Budget",
+        "wasAutoShifted" : false,
+        "startDate" : "2025-09-28T07:14:29Z",
+        "type" : {
+          "rawValue" : "monthly"
+        }
+      }
+    }
+  ],
+  "transactions" : [
+    {
+      "notes" : "Dewa",
+      "date" : "2025-10-10T05:01:22Z",
+      "categoryId" : "1BAF4E3C-2FED-4D3F-A24F-413891632123",
+      "id" : "5EBB5E44-4A16-4885-8219-8677091BA41A",
+      "amount" : 522.49
+    },
+    {
+      "notes" : "Vermicilli",
+      "date" : "2025-10-09T18:00:45Z",
+      "categoryId" : "135D950F-64F6-44C9-942E-A282683ED615",
+      "id" : "AAD74F86-030D-4C82-90E9-21CDD2BA1829",
+      "amount" : 4
+    },
+    {
+      "notes" : "Prateek nol",
+      "date" : "2025-10-09T14:50:51Z",
+      "categoryId" : "0C922811-A37D-43D1-AB6A-57AF18CEE0B0",
+      "id" : "1D4A44E9-98E7-4960-A1A4-60F6D40F6D5F",
+      "amount" : 50
+    },
+    {
+      "notes" : "Lunch",
+      "date" : "2025-10-09T13:53:55Z",
+      "categoryId" : "165B9B37-8B8D-4BD7-B658-2C5B00C1D97E",
+      "id" : "60D8EABC-EB6F-4012-8651-7F037CC53B7A",
+      "amount" : 45
+    },
+    {
+      "notes" : "Breakfast",
+      "date" : "2025-10-08T13:23:56Z",
+      "categoryId" : "165B9B37-8B8D-4BD7-B658-2C5B00C1D97E",
+      "id" : "6474B7C9-8CC2-4C47-8A9E-45C61C419080",
+      "amount" : 33.58
+    },
+    {
+      "notes" : "Carrefour",
+      "date" : "2025-10-08T07:14:29Z",
+      "categoryId" : "135D950F-64F6-44C9-942E-A282683ED615",
+      "id" : "1E691887-3AA2-44CB-985C-835723FA8DB8",
+      "amount" : 232
+    },
+    {
+      "notes" : "Bucket And Mug",
+      "date" : "2025-10-08T07:14:29Z",
+      "categoryId" : "135D950F-64F6-44C9-942E-A282683ED615",
+      "id" : "C85BBF66-721F-4352-93E5-6BFE95CDEDFE",
+      "amount" : 19
+    },
+    {
+      "notes" : "Milk",
+      "date" : "2025-10-07T16:53:06Z",
+      "categoryId" : "135D950F-64F6-44C9-942E-A282683ED615",
+      "id" : "FECDF503-62F6-45E0-A2EA-835516AA8DB5",
+      "amount" : 9
+    },
+    {
+      "notes" : "Diwali And Karwa",
+      "date" : "2025-10-07T15:22:48Z",
+      "categoryId" : "135D950F-64F6-44C9-942E-A282683ED615",
+      "id" : "1B211241-1CF7-428F-9B06-2F16127F3C2B",
+      "amount" : 197.2
+    },
+    {
+      "notes" : "Metro",
+      "date" : "2025-10-07T15:20:35Z",
+      "categoryId" : "0C922811-A37D-43D1-AB6A-57AF18CEE0B0",
+      "id" : "051524A8-C3C0-4499-9A93-4248083CB04D",
+      "amount" : 20
+    },
+    {
+      "notes" : "Rent",
+      "date" : "2025-10-07T07:14:29Z",
+      "categoryId" : "0782EB10-CFB3-4CD7-AD82-50F8661D3B7F",
+      "id" : "07C4CCED-56C5-48FB-AB54-E02B096DD78E",
+      "amount" : 5959
+    },
+    {
+      "notes" : "Maca Powder",
+      "date" : "2025-10-07T07:14:29Z",
+      "categoryId" : "75758AAE-DFF1-4B70-B3D9-7DB9F8D2E146",
+      "id" : "684FFAAA-6258-4AFA-A564-FF041CEDBE1B",
+      "amount" : 88
+    },
+    {
+      "notes" : "Breakfast",
+      "date" : "2025-10-06T10:46:02Z",
+      "categoryId" : "165B9B37-8B8D-4BD7-B658-2C5B00C1D97E",
+      "id" : "DB84BC4E-D00F-425A-B8A3-25E9744B02A8",
+      "amount" : 33.15
+    },
+    {
+      "notes" : "Carrefour",
+      "date" : "2025-10-06T10:45:48Z",
+      "categoryId" : "135D950F-64F6-44C9-942E-A282683ED615",
+      "id" : "C1259E73-FF84-46D2-B507-0EE6233CDE36",
+      "amount" : 100.57
+    },
+    {
+      "notes" : "Uner",
+      "date" : "2025-10-05T19:09:52Z",
+      "categoryId" : "0C922811-A37D-43D1-AB6A-57AF18CEE0B0",
+      "id" : "4A877D6B-9A15-4496-BB35-172F920C10DD",
+      "amount" : 8
+    },
+    {
+      "notes" : "Play",
+      "date" : "2025-10-05T19:08:04Z",
+      "categoryId" : "B026C003-1343-4E9E-8D27-2118BDC0D193",
+      "id" : "E285D40E-2B7C-4A2C-80AB-DE0923FAB192",
+      "amount" : 350
+    },
+    {
+      "notes" : "Dinner - Brass Monkey",
+      "date" : "2025-10-05T19:06:10Z",
+      "categoryId" : "165B9B37-8B8D-4BD7-B658-2C5B00C1D97E",
+      "id" : "8175A942-58AE-46F9-AD30-60EBF7DF6E5C",
+      "amount" : 220
+    },
+    {
+      "notes" : "Bowling - Brass Monkey",
+      "date" : "2025-10-05T19:05:51Z",
+      "categoryId" : "B026C003-1343-4E9E-8D27-2118BDC0D193",
+      "id" : "20F46859-B360-4E50-A230-A7641A460D25",
+      "amount" : 300
+    },
+    {
+      "notes" : "Prateek Hair Cut & Beard",
+      "date" : "2025-10-05T12:56:05Z",
+      "categoryId" : "4FE2F330-33FD-4802-B385-7318283DF962",
+      "id" : "CAABA968-E76C-4FC5-AB99-035DE87DB7E6",
+      "amount" : 125
+    },
+    {
+      "notes" : "Beirut Cafe - Hummus, Tomato Soup, Lentil Keebe, Water",
+      "date" : "2025-10-04T14:41:39Z",
+      "categoryId" : "165B9B37-8B8D-4BD7-B658-2C5B00C1D97E",
+      "id" : "C4974CED-DFA3-4C1C-8686-9ACA378A87B5",
+      "amount" : 178.5
+    },
+    {
+      "notes" : "Preeti Tshirt - Calvin Klien",
+      "date" : "2025-10-04T14:24:45Z",
+      "categoryId" : "E105BB97-9C9C-4577-AA60-53ED530AA8D4",
+      "id" : "D50C109E-02ED-403D-8D4A-3585FFC60E53",
+      "amount" : 350
+    },
+    {
+      "notes" : "Prateek Jeans Shirt - Levis",
+      "date" : "2025-10-04T14:23:54Z",
+      "categoryId" : "E105BB97-9C9C-4577-AA60-53ED530AA8D4",
+      "id" : "9B10AFBE-D035-4F0E-B610-94083C874D4C",
+      "amount" : 1097
+    },
+    {
+      "notes" : "Movie food",
+      "date" : "2025-10-04T10:00:24Z",
+      "categoryId" : "B026C003-1343-4E9E-8D27-2118BDC0D193",
+      "id" : "18D83829-C896-429B-A758-97ED1EBDB30F",
+      "amount" : 43
+    },
+    {
+      "notes" : "Prateek NOL",
+      "date" : "2025-10-04T08:42:03Z",
+      "categoryId" : "0C922811-A37D-43D1-AB6A-57AF18CEE0B0",
+      "id" : "064E1791-985C-4ADC-9307-2794490FC78D",
+      "amount" : 50
+    },
+    {
+      "notes" : "Caserole",
+      "date" : "2025-10-03T12:53:06Z",
+      "categoryId" : "90E8D279-50C1-4356-A11D-1BBE1C65BA89",
+      "id" : "1D3A0674-A85E-44FF-B5A9-52AE0341706C",
+      "amount" : 59
+    },
+    {
+      "categoryId" : "135D950F-64F6-44C9-942E-A282683ED615",
+      "notes" : "Carrefour",
+      "amount" : 98.82,
+      "id" : "C8A60FE3-5DEE-4795-9F91-D42AEC4861EC",
+      "date" : "2025-10-03T09:36:43Z"
+    },
+    {
+      "categoryId" : "B026C003-1343-4E9E-8D27-2118BDC0D193",
+      "notes" : "Sunny Sanskari Ki Tulsi Kumari",
+      "amount" : 75,
+      "id" : "0A24CA3A-BB5B-4636-87CA-F386B676FDF0",
+      "date" : "2025-10-02T18:32:46Z"
+    },
+    {
+      "categoryId" : "165B9B37-8B8D-4BD7-B658-2C5B00C1D97E",
+      "notes" : "Hummus",
+      "amount" : 55.65,
+      "id" : "822C796B-6971-4977-8A8E-48B181D09E82",
+      "date" : "2025-10-02T14:30:27Z"
+    },
+    {
+      "categoryId" : "1BAF4E3C-2FED-4D3F-A24F-413891632123",
+      "notes" : "Water",
+      "amount" : 29.4,
+      "id" : "A6F0B1D8-4149-4CB2-A8C5-C10FCF12E1ED",
+      "date" : "2025-10-02T07:33:30Z"
+    },
+    {
+      "categoryId" : "135D950F-64F6-44C9-942E-A282683ED615",
+      "notes" : "Carrefour",
+      "amount" : 78.94,
+      "id" : "23EDB9BD-8BFC-43BE-9218-4D50C995B8E3",
+      "date" : "2025-10-01T17:19:33Z"
+    },
+    {
+      "categoryId" : "90E8D279-50C1-4356-A11D-1BBE1C65BA89",
+      "notes" : "Prateek Bottle",
+      "amount" : 36.5,
+      "id" : "59B9E036-E4E5-4B45-B8D1-1DBC25F86D35",
+      "date" : "2025-10-01T17:17:16Z"
+    },
+    {
+      "categoryId" : "90E8D279-50C1-4356-A11D-1BBE1C65BA89",
+      "notes" : "Cutting Board",
+      "amount" : 45,
+      "id" : "27BA71EE-3F1E-424D-A9B2-43FE3C73BBDD",
+      "date" : "2025-10-01T17:15:56Z"
+    },
+    {
+      "categoryId" : "90E8D279-50C1-4356-A11D-1BBE1C65BA89",
+      "notes" : "Claude",
+      "amount" : 73.45,
+      "id" : "16E0AF4B-EB5D-4AC4-BDF9-0CA905A54093",
+      "date" : "2025-10-01T03:09:41Z"
+    },
+    {
+      "categoryId" : "165B9B37-8B8D-4BD7-B658-2C5B00C1D97E",
+      "notes" : "Lunch",
+      "amount" : 45,
+      "id" : "8F8151F9-EB4F-41B3-90F3-3199836E079E",
+      "date" : "2025-09-30T13:31:08Z"
+    },
+    {
+      "categoryId" : "135D950F-64F6-44C9-942E-A282683ED615",
+      "notes" : "Carrefour",
+      "amount" : 192.01,
+      "id" : "90C213AF-4825-40B2-B307-0424B23F2838",
+      "date" : "2025-09-30T07:14:29Z"
+    },
+    {
+      "categoryId" : "165B9B37-8B8D-4BD7-B658-2C5B00C1D97E",
+      "notes" : "Talabat Dinner",
+      "amount" : 83.8,
+      "id" : "C49A305A-8CF5-4580-A8AE-ED733E324E0B",
+      "date" : "2025-09-29T13:22:37Z"
+    },
+    {
+      "categoryId" : "90E8D279-50C1-4356-A11D-1BBE1C65BA89",
+      "notes" : "Prasadam",
+      "amount" : 60,
+      "id" : "A3EC3784-5F27-401D-989F-0D61B4C8C9B6",
+      "date" : "2025-09-29T07:53:11Z"
+    },
+    {
+      "categoryId" : "D745C352-1249-4A92-89CF-71FCC56A89FD",
+      "notes" : "Binance Investment",
+      "amount" : 479.6,
+      "id" : "712DA934-D015-41B4-AAB1-1EAF793F6C2D",
+      "date" : "2025-09-29T07:14:29Z"
+    },
+    {
+      "categoryId" : "0C922811-A37D-43D1-AB6A-57AF18CEE0B0",
+      "notes" : "Uber",
+      "amount" : 200,
+      "id" : "564AC324-4982-42CE-B658-23AA827A00BC",
+      "date" : "2025-09-29T04:55:33Z"
+    },
+    {
+      "categoryId" : "4C63959D-4A17-4A1F-BE48-B3BB31B5F9D8",
+      "notes" : "India investments, loan, etc",
+      "amount" : 8000,
+      "id" : "FA408CF6-2F8C-45AC-8164-E9A4EDE3B712",
+      "date" : "2025-09-28T07:29:28Z"
+    },
+    {
+      "id" : "2144EA55-FDDD-4753-BFE8-4F2CF6E845FA",
+      "amount" : 96.23,
+      "notes" : "Carrefour",
+      "date" : "2025-09-28T07:28:08Z",
+      "categoryId" : "135D950F-64F6-44C9-942E-A282683ED615"
+    },
+    {
+      "id" : "30D4C888-E014-4676-AC65-126601DB4C1D",
+      "amount" : 131.25,
+      "notes" : "Prateek Du Mobile",
+      "date" : "2025-09-28T07:27:19Z",
+      "categoryId" : "1BAF4E3C-2FED-4D3F-A24F-413891632123"
+    },
+    {
+      "id" : "4B9E594D-7250-4495-AF0E-472B5CD19EBB",
+      "amount" : 530.25,
+      "notes" : "Du Home",
+      "date" : "2025-09-28T07:25:20Z",
+      "categoryId" : "1BAF4E3C-2FED-4D3F-A24F-413891632123"
+    },
+    {
+      "id" : "CF64ABAB-7270-4106-9CD5-30716B0C4881",
+      "amount" : 308.71,
+      "notes" : "Emicool",
+      "date" : "2025-10-10T05:10:33Z",
+      "categoryId" : "1BAF4E3C-2FED-4D3F-A24F-413891632123"
+    },
+    {
+      "id" : "5E5CBF99-6C25-4A3D-A225-22CBDF2152BE",
+      "amount" : 60.95,
+      "notes" : "Hummus",
+      "date" : "2025-10-09T07:14:29Z",
+      "categoryId" : "165B9B37-8B8D-4BD7-B658-2C5B00C1D97E"
+    },
+    {
+      "id" : "03060734-E59F-4036-B4A0-A7800B22D5D6",
+      "amount" : 29.4,
+      "notes" : "Water",
+      "date" : "2025-10-08T07:14:29Z",
+      "categoryId" : "1BAF4E3C-2FED-4D3F-A24F-413891632123"
+    }
+  ],
+  "version" : "1.0"
+}

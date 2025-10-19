@@ -3,61 +3,71 @@ import SwiftUI
 struct OnboardingCoordinator: View {
     @State private var onboardingState = OnboardingState()
     let onComplete: (Budget) -> Void
-    
+    let onImport: ((Budget, [Transaction]) -> Void)?
+
     @Environment(\.appTheme) private var theme
-    
-    init(onComplete: @escaping (Budget) -> Void = { _ in }) {
+
+    init(onComplete: @escaping (Budget) -> Void = { _ in }, onImport: ((Budget, [Transaction]) -> Void)? = nil) {
         self.onComplete = onComplete
+        self.onImport = onImport
     }
     
     var body: some View {
         ZStack {
-            // Main content area
-            VStack(spacing: 0) {
-                // Current Step View
-                Group {
-                    switch onboardingState.currentStep {
-                    case .welcome:
-                        WelcomeView(onboardingState: onboardingState)
-                    case .currency:
-                        CurrencySelectionView(onboardingState: onboardingState)
-                    case .budgetTypeSelection:
-                        // Skip this step since budget type selection is now part of DateSelectionView
-                        DateSelectionView(onboardingState: onboardingState)
-                    case .dateSelection:
-                        DateSelectionView(onboardingState: onboardingState)
-                    case .categorySetup:
-                        CategorySetupView(onboardingState: onboardingState)
-                    }
-                }
-                .transition(.opacity)
-                
-            }
-            
-            // Fixed Back Button at Top (only show on non-welcome steps)
-            if !onboardingState.isFirstStep {
-                VStack {
-                    HStack {
-                        DSIconButton(type: .back) {
+            // Current Step View
+            Group {
+                switch onboardingState.currentStep {
+                case .welcome:
+                    WelcomeView(onboardingState: onboardingState, onImportBudget: { budget, transactions in
+                        onImport?(budget, transactions)
+                    })
+                case .currency:
+                    CurrencySelectionView(
+                        onboardingState: onboardingState,
+                        onBack: {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 onboardingState.goToPreviousStep()
                             }
                         }
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    Spacer()
+                    )
+                case .budgetTypeSelection:
+                    // Skip this step since budget type selection is now part of DateSelectionView
+                    DateSelectionView(
+                        onboardingState: onboardingState,
+                        onBack: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                onboardingState.goToPreviousStep()
+                            }
+                        }
+                    )
+                case .dateSelection:
+                    DateSelectionView(
+                        onboardingState: onboardingState,
+                        onBack: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                onboardingState.goToPreviousStep()
+                            }
+                        }
+                    )
+                case .categorySetup:
+                    CategorySetupView(
+                        onboardingState: onboardingState,
+                        onBack: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                onboardingState.goToPreviousStep()
+                            }
+                        }
+                    )
                 }
             }
-            
+
             // Fixed Navigation Area (only show on non-welcome steps)
             if !onboardingState.isFirstStep {
                 VStack {
                     Spacer()
                     HStack {
                         Spacer()
-                        
+
                         // Next/Complete Button
                         Group {
                             if onboardingState.isLastStep {
@@ -80,8 +90,8 @@ struct OnboardingCoordinator: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
+                    .padding(.horizontal, DSSpacing.md)
+                    .padding(.bottom, DSSpacing.md)
                 }
             }
         }

@@ -1,84 +1,79 @@
 import Foundation
 
-struct Category: Identifiable, Hashable {
+struct SubCategory: Identifiable, Hashable, Codable {
     let id: UUID
     let name: String
-    let color: CategoryColor
-    let isDefault: Bool
-    
-    init(name: String, color: CategoryColor, isDefault: Bool = false) {
+    let categoryGroup: CategoryGroup
+    let categoryType: CategoryType
+
+    init(name: String, categoryGroup: CategoryGroup, categoryType: CategoryType? = nil) {
         self.id = UUID()
         self.name = name
-        self.color = color
-        self.isDefault = isDefault
+        self.categoryGroup = categoryGroup
+        // Default based on category group: financialGoals -> savings, others -> expense
+        self.categoryType = categoryType ?? (categoryGroup == .financialGoals ? .savings : .expense)
     }
-    
-    init(id: UUID, name: String, color: CategoryColor, isDefault: Bool = false) {
+
+    init(id: UUID, name: String, categoryGroup: CategoryGroup, categoryType: CategoryType? = nil) {
         self.id = id
         self.name = name
-        self.color = color
-        self.isDefault = isDefault
+        self.categoryGroup = categoryGroup
+        // Default based on category group: financialGoals -> savings, others -> expense
+        self.categoryType = categoryType ?? (categoryGroup == .financialGoals ? .savings : .expense)
     }
-    
-    static func createDefault() -> [Category] {
-        DefaultCategory.allCases.map { defaultCategory in
-            Category(
-                name: defaultCategory.displayName,
-                color: defaultCategory.assignedColor,
-                isDefault: true
-            )
+
+    static func createDefault() -> [SubCategory] {
+        var subCategories: [SubCategory] = []
+
+        for group in CategoryGroup.allCases {
+            let defaultNames = CategoryGroup.defaultSubCategories(for: group)
+            for name in defaultNames {
+                // Financial Goals categories default to savings, others to expense
+                let type: CategoryType = group == .financialGoals ? .savings : .expense
+                subCategories.append(SubCategory(
+                    name: name,
+                    categoryGroup: group,
+                    categoryType: type
+                ))
+            }
         }
-    }
-    
-    static func createCustom(name: String, color: CategoryColor) -> Category {
-        Category(name: name, color: color, isDefault: false)
+
+        return subCategories
     }
 }
 
 @Observable
 class CategoryManager {
-    var categories: [Category] = Category.createDefault()
-    
-    var customCategories: [Category] {
-        categories.filter { !$0.isDefault }
+    var subCategories: [SubCategory] = SubCategory.createDefault()
+
+    func subCategories(for group: CategoryGroup) -> [SubCategory] {
+        subCategories.filter { $0.categoryGroup == group }
     }
-    
-    var defaultCategories: [Category] {
-        categories.filter { $0.isDefault }
+
+    func allGroupsWithSubCategories() -> [(CategoryGroup, [SubCategory])] {
+        CategoryGroup.allCases.map { group in
+            (group, subCategories(for: group))
+        }.filter { !$0.1.isEmpty }
     }
-    
-    var usedColors: [CategoryColor] {
-        categories.map { $0.color }
+
+    func addSubCategory(name: String, group: CategoryGroup, categoryType: CategoryType? = nil) {
+        guard !subCategories.contains(where: { $0.name.lowercased() == name.lowercased() }) else { return }
+
+        let newSubCategory = SubCategory(name: name, categoryGroup: group, categoryType: categoryType)
+        subCategories.append(newSubCategory)
     }
-    
-    var availableColors: [CategoryColor] {
-        CategoryColor.unusedColors(excluding: usedColors)
+
+    func removeSubCategory(_ subCategory: SubCategory) {
+        subCategories.removeAll { $0.id == subCategory.id }
     }
-    
-    var canAddMoreCategories: Bool {
-        customCategories.count < 6
-    }
-    
-    func addCategory(name: String, color: CategoryColor) {
-        guard canAddMoreCategories else { return }
-        guard availableColors.contains(color) else { return }
-        
-        let newCategory = Category.createCustom(name: name, color: color)
-        categories.append(newCategory)
-    }
-    
-    func removeCategory(_ category: Category) {
-        categories.removeAll { $0.id == category.id }
-    }
-    
-    func updateCategory(_ category: Category, name: String) {
-        guard !category.isDefault else { return }
-        
-        if let index = categories.firstIndex(where: { $0.id == category.id }) {
-            categories[index] = Category(
+
+    func updateSubCategory(_ subCategory: SubCategory, name: String, categoryType: CategoryType? = nil) {
+        if let index = subCategories.firstIndex(where: { $0.id == subCategory.id }) {
+            subCategories[index] = SubCategory(
+                id: subCategory.id,
                 name: name,
-                color: category.color,
-                isDefault: false
+                categoryGroup: subCategory.categoryGroup,
+                categoryType: categoryType ?? subCategory.categoryType
             )
         }
     }

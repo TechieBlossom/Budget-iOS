@@ -153,19 +153,35 @@ class OnboardingState {
     func updateCategoryAmount(categoryId: String, amount: Double) {
         categoryAmounts[categoryId] = amount
     }
-    
-    func completeOnboarding() {
-        // This would typically save the onboarding data
-        // For now, we'll just mark it as complete
-        print("Onboarding completed with:")
-        print("Choice: \(userChoice?.description ?? "none")")
-        print("Currency: \(selectedCurrency?.displayName ?? "none")")
-        print("Budget Type: \(selectedBudgetType.displayName)")
-        print("Budget Period: \(budgetPeriod.name)")
-        print("Categories: \(categoryManager.categories.count)")
-        print("Total Budget: \(formattedTotalBudget)")
+
+    // Category Manager wrapper methods to ensure proper observation
+    // These methods ensure the view updates when categoryManager changes
+    func addSubCategory(name: String, group: CategoryGroup, categoryType: CategoryType? = nil) {
+        categoryManager.addSubCategory(name: name, group: group, categoryType: categoryType)
     }
-    
+
+    func removeSubCategory(_ subCategory: SubCategory) {
+        categoryManager.removeSubCategory(subCategory)
+        // Remove from categoryAmounts if exists
+        categoryAmounts.removeValue(forKey: subCategory.id.uuidString)
+    }
+
+    func updateSubCategory(_ subCategory: SubCategory, name: String, categoryType: CategoryType? = nil) {
+        categoryManager.updateSubCategory(subCategory, name: name, categoryType: categoryType)
+    }
+
+    func toggleCategoryType(for subCategory: SubCategory) {
+        if let index = categoryManager.subCategories.firstIndex(where: { $0.id == subCategory.id }) {
+            let newType: CategoryType = subCategory.categoryType == .expense ? .savings : .expense
+            categoryManager.subCategories[index] = SubCategory(
+                id: subCategory.id,
+                name: subCategory.name,
+                categoryGroup: subCategory.categoryGroup,
+                categoryType: newType
+            )
+        }
+    }
+
     func createCompletedBudget() -> Budget {
         guard let currency = selectedCurrency else {
             // Fallback to USD if no currency selected
@@ -173,15 +189,15 @@ class OnboardingState {
             return Budget(
                 period: budgetPeriod,
                 currency: fallbackCurrency,
-                categories: categoryManager.categories,
+                categories: categoryManager.subCategories,
                 categoryAmounts: categoryAmounts
             )
         }
-        
+
         return Budget(
             period: budgetPeriod,
             currency: currency,
-            categories: categoryManager.categories,
+            categories: categoryManager.subCategories,
             categoryAmounts: categoryAmounts
         )
     }

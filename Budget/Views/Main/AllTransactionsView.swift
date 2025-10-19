@@ -4,72 +4,301 @@ struct AllTransactionsView: View {
     let budgetManager: any BudgetManagerProtocol
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
-    
+    @State private var transactionToEdit: Transaction?
+    @StateObject private var searchManager = SearchManager()
+    @State private var notificationManager = NotificationManager()
+    @State private var showFilterSheet = false
+    @State private var showAddTransaction = false
+    @State private var searchText = ""
+
+    private var allTransactions: [Transaction] {
+        budgetManager.getAllTransactions()
+    }
+
+    private var filteredTransactions: [Transaction] {
+        searchManager.filterTransactions(allTransactions, categories: budgetManager.budget.categories)
+    }
+
     private var transactionsByDate: [(Date, [Transaction])] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: budgetManager.getAllTransactions().sorted { $0.date > $1.date }) { transaction in
-            calendar.startOfDay(for: transaction.date)
+        let grouped = Dictionary(grouping: filteredTransactions.sorted { $0.date > $1.date }) { tx in
+            calendar.startOfDay(for: tx.date)
         }
-        
         return grouped.sorted { $0.key > $1.key }
     }
-    
+
+    private var hasActiveFilters: Bool {
+        // your logic (I think you meant “has filters & query nonempty”)
+        return searchManager.searchCriteria.hasActiveFilters && !searchManager.searchCriteria.query.isEmpty
+    }
+
+    private var activeFilterPills: [FilterPillData] {
+        searchManager.getActiveFilterPills(categories: budgetManager.budget.categories)
+    }
+
+    private var filteredTotal: Double {
+        searchManager.calculateFilteredTotal(filteredTransactions)
+    }
+
+    private var totalAmount: Double {
+        searchManager.calculateFilteredTotal(allTransactions)
+    }
+
     var body: some View {
+        // *Do not* wrap in another NavigationStack here if the parent already has a NavigationStack.
+        // Just assume this view is inside a NavigationStack.
         VStack(spacing: 0) {
-            DSHeader(
-                title: "All Transactions",
-                subtitle: "\(budgetManager.getAllTransactions().count) transactions",
-                onBack: {
-                    dismiss()
-                }
-            )
-            
-            if transactionsByDate.isEmpty {
-                // Empty state
-                VStack(spacing: 16) {
+            // Subtitle & filter pills & summary — same as before
+            if hasActiveFilters {
+                HStack {
+                    DSText(
+                        "\(filteredTransactions.count) of \(allTransactions.count) transactions",
+                        font: .dsCaption,
+                        color: theme.colors.textSecondary
+                    )
                     Spacer()
-                    
-                    Image(systemName: "list.bullet")
-                        .font(.system(size: 48, weight: .light))
-                        .foregroundColor(theme.colors.secondaryText)
-                    
-                    VStack(spacing: 8) {
-                        DSText("No Transactions", font: .dsHeadline, color: theme.colors.primaryText)
-                        DSText("Start adding expenses to see them here", font: .dsBody, color: theme.colors.secondaryText)
+                }
+                .padding(.horizontal, DSSpacing.md)
+                .padding(.top, DSSpacing.xs)
+                .padding(.bottom, DSSpacing.xxs)
+            }
+
+            if !activeFilterPills.isEmpty {
+                DSActiveFilterPillsView(
+                    filters: activeFilterPills,
+                    onRemoveFilter: { pillId in
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            HapticManager.shared.lightImpact()
+                            searchManager.removeFilterPill(pillId, categories: budgetManager.budget.categories)
+                        }
+                    },
+                    onClearAll: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            HapticManager.shared.lightImpact()
+                            searchManager.clearSearch()
+                        }
                     }
-                    
-                    Spacer()
+                )
+                .transition(.asymmetric(
+                    insertion: .move(edge: .top).combined(with: .opacity),
+                    removal: .move(edge: .top).combined(with: .opacity)
+                ))
+            }
+            
+            
+            // Always show summary card
+            if !transactionsByDate.isEmpty {
+                DSFilterSummaryCard(
+                    filteredAmount: filteredTotal,
+                    filteredCount: filteredTransactions.count,
+                    totalAmount: totalAmount,
+                    totalCount: allTransactions.count,
+                    currencyCode: budgetManager.budget.currency.code
+                )
+                .padding(.vertical, DSSpacing.md)
+                .padding(.horizontal, DSSpacing.md)
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.95).combined(with: .opacity),
+                    removal: .scale(scale: 0.95).combined(with: .opacity)
+                ))
+            }
+            
+            Spacer()
+
+            if transactionsByDate.isEmpty {
+                VStack(spacing: DSSpacing.md) {
+                    Image(systemName: searchManager.searchCriteria.hasActiveFilters ? "magnifyingglass" : "doc.text")
+                        .font(.dsLargeTitle)
+                        .foregroundColor(theme.colors.textSecondary)
+
+                    DSText(
+                        searchManager.searchCriteria.hasActiveFilters ? "No Results Found" : "No Transactions",
+                        font: .dsHeadline,
+                        color: theme.colors.textPrimary
+                    )
+
+                    DSText(
+                        searchManager.searchCriteria.hasActiveFilters
+                            ? "Try adjusting your search or filters"
+                            : "Start adding expenses to see them here",
+                        font: .dsBody,
+                        color: theme.colors.textSecondary
+                    )
+                    .multilineTextAlignment(.center)
+
+                    if searchManager.searchCriteria.hasActiveFilters {
+                        DSButton("Clear Filters", style: .outline) {
+                            searchManager.clearSearch()
+                            searchText = ""
+                        }
+                    }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, DSSpacing.xxl)
+                Spacer()
             } else {
-                // Transactions list
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(transactionsByDate, id: \.0) { date, transactions in
                             TransactionDateSection(
                                 date: date,
                                 transactions: transactions,
-                                budgetManager: budgetManager
+                                budgetManager: budgetManager,
+                                onEditTransaction: { tx in
+                                    transactionToEdit = tx
+                                }
                             )
                         }
-                        
-                        // Bottom spacing
                         Rectangle()
                             .fill(Color.clear)
-                            .frame(height: 40)
+                            .frame(height: 20)
                     }
                 }
             }
         }
         .background(theme.colors.background)
-        .navigationBarBackButtonHidden(true)
+        .navigationTitle("All Transactions")
+        .navigationBarTitleDisplayMode(.inline)
+        .customNavigationBarAppearance()
+        .toolbar {
+            // Top-right filter button
+            ToolbarItem(placement: .topBarTrailing) {
+                ZStack {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .font(.dsHeadline)
+                        .foregroundColor(hasActiveFilters ? theme.colors.primary : theme.colors.textPrimary)
+                    if !activeFilterPills.isEmpty {
+                        Circle()
+                            .fill(theme.colors.primary)
+                            .frame(width: 12, height: 12)
+                            .overlay(
+                                DSText("\(activeFilterPills.count)", font: .dsCaption, color: .white)
+                                    .fontWeight(.bold)
+                            )
+                            .offset(x: 6, y: -6)
+                    }
+                }
+                .onTapGesture {
+                    HapticManager.shared.lightImpact()
+                    showFilterSheet = true
+                }
+            }
+
+            // Bottom toolbar: search + add button
+            if #available(iOS 26.0, *) {
+                DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                ToolbarSpacer(.flexible, placement: .bottomBar)
+            }
+            ToolbarItem(placement: .bottomBar) {
+                Image(systemName: "plus.circle")
+                    .font(.dsHeadline)
+                    .foregroundColor(hasActiveFilters ? theme.colors.primary : theme.colors.textPrimary)
+                    .onTapGesture {
+                        HapticManager.shared.lightImpact()
+                        showAddTransaction = true
+                    }
+            }
+        }
+        .searchable(
+            text: $searchText,
+            placement: .toolbar,
+            prompt: "Search transactions and categories"
+        )
+        .onChange(of: searchText) { _, newValue in
+            searchManager.searchCriteria.query = newValue
+        }
+        .onChange(of: searchManager.searchCriteria.query) { newQuery in
+            // keep searchText in sync if filters reset it
+            if newQuery != searchText {
+                searchText = newQuery
+            }
+        }
+        .snackbar(notificationManager)
+        .sheet(isPresented: $showFilterSheet) {
+            DSFilterModalSheet(
+                searchCriteria: $searchManager.searchCriteria,
+                categories: budgetManager.budget.categories,
+                onApply: {
+                    HapticManager.shared.success()
+                },
+                onClearAll: {
+                    HapticManager.shared.lightImpact()
+                    searchManager.clearSearch()
+                    searchText = ""
+                }
+            )
+        }
+        .fullScreenCover(isPresented: $showAddTransaction) {
+            AddTransactionSheet(
+                budgetId: budgetManager.budget.id,
+                categories: budgetManager.budget.categories,
+                currency: budgetManager.budget.currency,
+                budgetPeriod: budgetManager.budget.period,
+                budgetName: budgetManager.budget.budgetName,
+                categoryAmounts: budgetManager.budget.categoryAmounts,
+                existingTransaction: nil,
+                onSaveTransaction: { newTransaction in
+                    if budgetManager.addTransaction(newTransaction) {
+                        HapticManager.shared.transactionAdded()
+                        notificationManager.showSuccess("Transaction added successfully!")
+                    } else {
+                        HapticManager.shared.operationFailed()
+                        notificationManager.showError("Failed to add transaction")
+                    }
+                    showAddTransaction = false
+                },
+                onUpdateBudget: nil,
+                onDeleteTransaction: nil
+            )
+        }
+        .fullScreenCover(item: $transactionToEdit) { tx in
+            AddTransactionSheet(
+                budgetId: budgetManager.budget.id,
+                categories: budgetManager.budget.categories,
+                currency: budgetManager.budget.currency,
+                budgetPeriod: budgetManager.budget.period,
+                budgetName: budgetManager.budget.budgetName,
+                categoryAmounts: budgetManager.budget.categoryAmounts,
+                existingTransaction: tx,
+                onSaveTransaction: { updatedTx in
+                    if budgetManager.updateTransaction(updatedTx) {
+                        HapticManager.shared.success()
+                        notificationManager.showSuccess("Transaction updated successfully!")
+                    } else {
+                        HapticManager.shared.operationFailed()
+                        notificationManager.showError("Failed to update transaction")
+                    }
+                    transactionToEdit = nil
+                },
+                onUpdateBudget: nil,
+                onDeleteTransaction: { txToDelete in
+                    if budgetManager.deleteTransaction(txToDelete) {
+                        HapticManager.shared.transactionDeleted()
+                        notificationManager.showUndo("Transaction deleted") {
+                            if budgetManager.undoLastTransaction() {
+                                HapticManager.shared.transactionRestored()
+                                notificationManager.showSuccess("Transaction restored!")
+                            } else {
+                                HapticManager.shared.operationFailed()
+                                notificationManager.showError("Failed to restore transaction")
+                            }
+                        }
+                    } else {
+                        HapticManager.shared.operationFailed()
+                        notificationManager.showError("Failed to delete transaction")
+                    }
+                    transactionToEdit = nil
+                }
+            )
+        }
     }
 }
+
 
 struct TransactionDateSection: View {
     let date: Date
     let transactions: [Transaction]
     let budgetManager: any BudgetManagerProtocol
+    let onEditTransaction: (Transaction) -> Void
     @Environment(\.appTheme) private var theme
     
     private var dateFormatter: DateFormatter {
@@ -89,96 +318,94 @@ struct TransactionDateSection: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             // Date header
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.xs) {
                 HStack {
-                    DSText(dateFormatter.string(from: date), font: .dsBody, color: theme.colors.primaryText)
+                    DSText(dateFormatter.string(from: date), font: .dsBody, color: theme.colors.textPrimary)
                         .fontWeight(.medium)
                     
                     Spacer()
                     
-                    DSText(String(format: "%.2f", dayTotal), font: .dsBody, color: theme.colors.secondaryText)
+                    DSText(String(format: "%.2f", dayTotal), font: .dsBody, color: theme.colors.textSecondary)
                 }
                 
                 Divider()
-                    .background(theme.colors.secondaryText.opacity(0.2))
+                    .background(theme.colors.divider)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, DSSpacing.md)
             
             // Transactions for this date
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.xs) {
                 ForEach(transactions) { transaction in
                     TransactionRowView(
                         transaction: transaction,
-                        budgetManager: budgetManager
+                        budgetManager: budgetManager,
+                        onEditTransaction: {
+                            onEditTransaction(transaction)
+                        }
                     )
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, DSSpacing.md)
                 }
             }
         }
-        .padding(.bottom, 24)
+        .padding(.bottom, DSSpacing.xl)
     }
 }
 
 struct TransactionRowView: View {
     let transaction: Transaction
     let budgetManager: any BudgetManagerProtocol
+    let onEditTransaction: (() -> Void)?
     @Environment(\.appTheme) private var theme
-    
-    private var category: Category? {
+
+    private var subCategory: SubCategory? {
         budgetManager.budget.categories.first { $0.id == transaction.categoryId }
     }
-    
-    private var timeFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return formatter
-    }
-    
+
+
     var body: some View {
-        DSCard(padding: 12) {
-            HStack(spacing: 12) {
-                // Category color indicator
-                if let category = category {
-                    Rectangle()
-                        .fill(category.color.color)
-                        .frame(width: 4, height: 40)
-                        .cornerRadius(2)
-                } else {
-                    Rectangle()
-                        .fill(theme.colors.secondaryText)
-                        .frame(width: 4, height: 40)
-                        .cornerRadius(2)
-                }
-                
-                // Transaction details
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        DSText(transaction.notes.isEmpty ? "Expense" : transaction.notes, 
-                               font: .dsBody, color: theme.colors.primaryText)
-                            .fontWeight(.medium)
-                            .lineLimit(1)
-                        
+        Button(action: {
+            onEditTransaction?()
+        }) {
+            HStack(spacing: 0) {
+                // Color Border (like expandable card)
+                Rectangle()
+                    .fill(subCategory?.categoryGroup.color ?? theme.colors.textSecondary)
+                    .frame(width: 8)
+                    .cornerRadius(8, corners: [.topLeft, .bottomLeft])
+
+                VStack(spacing: DSSpacing.xs) {
+                    // Transaction header
+                    HStack(alignment: .bottom) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                            DSText(transaction.notes.isEmpty ? "Expense" : transaction.notes, font: .dsHeadline, color: theme.colors.textPrimary)
+                                .lineLimit(1)
+                            HStack(spacing: DSSpacing.xxs) {
+                                DSText(subCategory?.name ?? "Unknown", font: .dsCaption, color: theme.colors.textSecondary)
+                                if let subCategory = subCategory {
+                                    DSText("•", font: .dsCaption, color: theme.colors.textSecondary)
+                                    DSText(subCategory.categoryGroup.displayName, font: .dsCaption, color: theme.colors.textSecondary)
+                                }
+                            }
+                        }
+
                         Spacer()
-                        
-                        DSText(String(format: "%.2f", transaction.amount), 
-                               font: .dsBody, color: theme.colors.primaryText)
-                            .fontWeight(.medium)
-                    }
-                    
-                    HStack {
-                        DSText(category?.name ?? "Unknown Category", 
-                               font: .dsCaption, color: theme.colors.secondaryText)
-                        
-                        Spacer()
-                        
-                        DSText(timeFormatter.string(from: transaction.date), 
-                               font: .dsCaption, color: theme.colors.secondaryText)
+
+                        VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
+                            DSText(String(format: "%.2f", transaction.amount), font: .dsBody, color: theme.colors.textPrimary)
+                                .fontWeight(.medium)
+                            DSText(budgetManager.budget.currency.code, font: .dsCaption, color: theme.colors.textSecondary)
+                        }
                     }
                 }
+                .padding(.horizontal, DSSpacing.md)
+                .padding(.vertical, DSSpacing.md)
             }
+            .background(theme.colors.surface)
+            .cornerRadius(8)
         }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

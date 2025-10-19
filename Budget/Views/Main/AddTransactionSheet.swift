@@ -3,123 +3,372 @@ import SwiftUI
 struct AddTransactionSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
-    
-    let categories: [Category]
+
+    let budgetId: UUID
+    let categories: [SubCategory]
     let currency: Currency
     let budgetPeriod: BudgetPeriod
     let budgetName: String
-    let onAddTransaction: (Transaction) -> Void
-    
+    let categoryAmounts: [String: Double]
+    let existingTransaction: Transaction?
+    let onSaveTransaction: (Transaction) -> Void
+    let onUpdateBudget: ((Budget) -> Bool)?
+    let onDeleteTransaction: ((Transaction) -> Void)?
+
     @State private var name: String = ""
     @State private var amount: String = ""
     @State private var notes: String = ""
-    @State private var selectedCategory: Category?
+    @State private var selectedSubCategory: SubCategory?
     @State private var selectedDate = Date() // Defaults to today
+    @State private var showingZeroBudgetAlert = false
+    @State private var pendingTransaction: Transaction?
+    @State private var isRecurring: Bool = false
+    @State private var selectedRecurrenceIndex: Int = 0  // 0 = Weekly, 1 = Monthly
+    @State private var showingDeleteConfirmation = false
+    @State private var showingSubCategoryPicker = false
+
+    private var isEditMode: Bool {
+        existingTransaction != nil
+    }
+
+    init(budgetId: UUID, categories: [SubCategory], currency: Currency, budgetPeriod: BudgetPeriod, budgetName: String, categoryAmounts: [String: Double], existingTransaction: Transaction? = nil, onSaveTransaction: @escaping (Transaction) -> Void, onUpdateBudget: ((Budget) -> Bool)? = nil, onDeleteTransaction: ((Transaction) -> Void)? = nil) {
+        self.budgetId = budgetId
+        self.categories = categories
+        self.currency = currency
+        self.budgetPeriod = budgetPeriod
+        self.budgetName = budgetName
+        self.categoryAmounts = categoryAmounts
+        self.existingTransaction = existingTransaction
+        self.onSaveTransaction = onSaveTransaction
+        self.onUpdateBudget = onUpdateBudget
+        self.onDeleteTransaction = onDeleteTransaction
+
+        // Initialize state from existing transaction if in edit mode
+        if let transaction = existingTransaction {
+            _name = State(initialValue: transaction.notes)
+            _amount = State(initialValue: String(format: "%.2f", transaction.amount))
+            _notes = State(initialValue: transaction.notes)
+            _selectedDate = State(initialValue: transaction.date)
+            _isRecurring = State(initialValue: transaction.isRecurring)
+            _selectedRecurrenceIndex = State(initialValue: transaction.recurrenceType == .weekly ? 0 : 1)
+            _selectedSubCategory = State(initialValue: categories.first(where: { $0.id == transaction.categoryId }))
+        }
+    }
     
     var body: some View {
-        return VStack(spacing: 0) {
-            DSHeader(
-                title: "Add Expense",
-                subtitle: budgetName,
-                onBack: {
-                    dismiss()
-                }
-            )
-                
+        NavigationStack {
+            VStack(spacing: 0) {
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: DSSpacing.xl) {
+                        // Top spacing
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(height: 8)
+
                         // Date Section
                         HorizontalDatePicker(selectedDate: $selectedDate, budgetPeriod: budgetPeriod)
-                        
+
                         // Name Section
-                        VStack(alignment: .leading, spacing: 8) {
-                            DSText("Expense Name", font: .dsBody, color: theme.colors.primaryText)
-                            DSTextField("Enter expense name", text: $name)
-                        }.padding(.horizontal, 16)
-                        
+                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                            DSText("Expense Name", font: .dsHeadline, color: theme.colors.textPrimary)
+                            DSTextField("e.g., Coffee, Groceries, Gas", text: $name, autocapitalization: .words)
+                        }.padding(.horizontal, DSSpacing.md)
+
                         // Amount Section
-                        VStack(alignment: .leading, spacing: 8) {
-                            DSText("Amount", font: .dsBody, color: theme.colors.primaryText)
-                            DSTextField("0.00", text: $amount)
-                                .keyboardType(.decimalPad)
-                        }.padding(.horizontal, 16)
-                        
-                        // Category Section
-                        VStack(alignment: .leading, spacing: 8) {
-                            DSText("Category", font: .dsBody, color: theme.colors.primaryText)
-                            
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
-                                ForEach(categories) { category in
-                                    CategorySelectionCard(
-                                        category: category,
-                                        isSelected: selectedCategory?.id == category.id
-                                    ) {
-                                        selectedCategory = category
+                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                            DSText("Amount", font: .dsHeadline, color: theme.colors.textPrimary)
+                            DSTextField("Enter amount (e.g., 25.50)", text: $amount, keyboardType: .decimalPad)
+                        }.padding(.horizontal, DSSpacing.md)
+
+                        // Recurring Transaction Section
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                            DSText("Recurring Transaction", font: .dsHeadline, color: theme.colors.textPrimary)
+
+
+                                HStack(spacing: DSSpacing.md) {
+                                    DSFilterChip("One-time", isSelected: !isRecurring) {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            isRecurring = false
+                                        }
+                                    }
+
+                                    DSFilterChip("Weekly", isSelected: isRecurring && selectedRecurrenceIndex == 0) {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            isRecurring = true
+                                            selectedRecurrenceIndex = 0
+                                        }
+                                    }
+
+                                    DSFilterChip("Monthly", isSelected: isRecurring && selectedRecurrenceIndex == 1) {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            isRecurring = true
+                                            selectedRecurrenceIndex = 1
+                                        }
                                     }
                                 }
                             }
-                        }.padding(.horizontal, 16)
-                        
+                        .frame(height: 40)
+                        .padding(.horizontal, DSSpacing.md)
+
                         // Notes Section
-                        VStack(alignment: .leading, spacing: 8) {
-                            DSText("Notes (Optional)", font: .dsBody, color: theme.colors.primaryText)
-                            
-                            DSTextField("Enter notes", text: $notes)
-                        }.padding(.horizontal, 16)
-                        
-                        // Bottom spacing for sticky buttons
+                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                            DSText("Notes (Optional)", font: .dsHeadline, color: theme.colors.textPrimary)
+
+                            DSTextField("e.g., Lunch with colleagues, Receipt #1234", text: $notes, autocapitalization: .words)
+                        }.padding(.horizontal, DSSpacing.md)
+
+                        // Category Section
+                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                            DSText("Category", font: .dsHeadline, color: theme.colors.textPrimary)
+
+                            Button(action: {
+                                showingSubCategoryPicker = true
+                            }) {
+                                HStack(spacing: DSSpacing.sm) {
+                                    if let subCategory = selectedSubCategory {
+                                        Circle()
+                                            .fill(subCategory.categoryGroup.color)
+                                            .frame(width: 12, height: 12)
+
+                                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                                            DSText(subCategory.name, font: .dsHeadline, color: theme.colors.textPrimary)
+                                            DSText(subCategory.categoryGroup.displayName, font: .dsCaption, color: theme.colors.textSecondary)
+                                        }
+                                    } else {
+                                        DSText("Select Category", font: .dsHeadline, color: theme.colors.textSecondary)
+                                    }
+
+                                    Spacer()
+
+                                    Image(systemName: "chevron.right")
+                                        .font(.dsSubtitle)
+                                        .foregroundColor(theme.colors.textSecondary)
+                                }
+                                .padding(DSSpacing.md)
+                                .background(theme.colors.surface)
+                                .cornerRadius(12)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }.padding(.horizontal, DSSpacing.md)
+
+                        // Bottom spacing
                         Rectangle()
                             .fill(Color.clear)
                             .frame(height: 20)
                     }
                 }
-                
-                // Sticky bottom buttons
-                VStack(spacing: 0) {
-                    Divider()
-                        .background(theme.colors.secondaryText.opacity(0.2))
-                    
-                    DSButton("Save", style: .primary, fullWidth: true) {
+            }
+            .background(theme.colors.background)
+            .navigationTitle(isEditMode ? "Edit Expense" : "Add Expense")
+            .navigationBarTitleDisplayMode(.inline)
+            .customNavigationBarAppearance()
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Image(systemName: "xmark")
+                        .font(.dsHeadline)
+                        .foregroundColor(theme.colors.textPrimary)
+                        .onTapGesture {
+                            dismiss()
+                        }
+                }
+
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if isEditMode, onDeleteTransaction != nil {
+                        Button(action: {
+                            showingDeleteConfirmation = true
+                        }) {
+                            Image(systemName: "trash")
+                                .font(.dsHeadline)
+                                .foregroundColor(.red)
+                        }
+                    }
+
+                    Button(action: {
                         saveTransaction()
+                    }) {
+                        Image(systemName: "checkmark")
+                            .font(.dsHeadline)
+                            .foregroundColor(isFormValid ? theme.colors.primary : theme.colors.textSecondary)
                     }
                     .disabled(!isFormValid)
-                    .opacity(isFormValid ? 1.0 : 0.6)
-                    .padding(.vertical, 16)
-                    .padding(.horizontal, 16)
-                    .background(theme.colors.background)
                 }
+            }
         }
-        .background(theme.colors.background)
-        .navigationBarBackButtonHidden(true)
+        .alert("Delete Transaction", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                if let transaction = existingTransaction {
+                    onDeleteTransaction?(transaction)
+                    dismiss()
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete this transaction? This action cannot be undone.")
+        }
+        .alert("Category Not in Budget", isPresented: $showingZeroBudgetAlert) {
+            Button("Cancel", role: .cancel) {
+                pendingTransaction = nil
+            }
+            Button("Add to Budget") {
+                addTransactionWithBudgetUpdate()
+            }
+        } message: {
+            Text("This category is not currently in your budget. Adding this transaction will add the category to your budget with a budget amount of \(pendingTransaction?.formattedAmount ?? "0.00") \(currency.code).")
+        }
+        .sheet(isPresented: $showingSubCategoryPicker) {
+            SubCategorySelectionSheet(
+                subCategories: categories,
+                selectedSubCategory: $selectedSubCategory,
+                onSelect: { subCategory in
+                    selectedSubCategory = subCategory
+                }
+            )
+        }
     }
-    
+
     private var isFormValid: Bool {
-        !name.isEmpty &&
-        !amount.isEmpty && 
-        selectedCategory != nil &&
+        !amount.isEmpty &&
+        selectedSubCategory != nil &&
         Double(amount) != nil &&
         Double(amount) ?? 0 > 0
     }
     
     private func saveTransaction() {
-        guard let category = selectedCategory,
+        guard let subCategory = selectedSubCategory,
               let amountValue = Double(amount),
-              amountValue > 0 else { return }
-        
-        let transaction = Transaction(
-            amount: amountValue,
-            notes: name.isEmpty ? notes : name,
-            date: selectedDate,
-            categoryId: category.id
-        )
-        
-        onAddTransaction(transaction)
+              amountValue > 0 else {
+            return
+        }
+
+        // Use notes field for transaction notes
+        let transactionNotes = notes
+
+        // Determine recurrence type
+        let recurrenceType: RecurrenceType = isRecurring ? (selectedRecurrenceIndex == 0 ? .weekly : .monthly) : .none
+
+        let transaction: Transaction
+        if let existingTx = existingTransaction {
+            // Edit mode: preserve the ID
+            transaction = Transaction(
+                id: existingTx.id,
+                amount: amountValue,
+                notes: transactionNotes,
+                date: selectedDate,
+                categoryId: subCategory.id,
+                isRecurring: isRecurring,
+                recurrenceType: recurrenceType
+            )
+        } else {
+            // Add mode: create new transaction
+            transaction = Transaction(
+                amount: amountValue,
+                notes: transactionNotes,
+                date: selectedDate,
+                categoryId: subCategory.id,
+                isRecurring: isRecurring,
+                recurrenceType: recurrenceType
+            )
+        }
+
+        // Check if sub-category has zero budget amount (only in add mode)
+        if !isEditMode {
+            let categoryBudgetAmount = categoryAmounts[subCategory.id.uuidString] ?? 0
+            if categoryBudgetAmount == 0 {
+                pendingTransaction = transaction
+                showingZeroBudgetAlert = true
+                return
+            }
+        }
+
+        // Sub-category has budget, proceed normally
+        // If recurring and in add mode, add multiple transactions
+        if isRecurring && !isEditMode {
+            addRecurringTransactions(baseTransaction: transaction, subCategory: subCategory)
+        } else {
+            onSaveTransaction(transaction)
+        }
         dismiss()
+    }
+
+    private func addRecurringTransactions(baseTransaction: Transaction, subCategory: SubCategory) {
+        let calendar = Calendar.current
+
+        // Add the initial transaction
+        onSaveTransaction(baseTransaction)
+
+        // Calculate how many recurring transactions to add based on budget period
+        let occurrences: Int
+        switch baseTransaction.recurrenceType {
+        case .weekly:
+            // Add weekly transactions until budget end date
+            let weeks = calendar.dateComponents([.weekOfYear], from: baseTransaction.date, to: budgetPeriod.endDate).weekOfYear ?? 0
+            occurrences = max(0, weeks)
+        case .monthly:
+            // Add monthly transactions until budget end date
+            let months = calendar.dateComponents([.month], from: baseTransaction.date, to: budgetPeriod.endDate).month ?? 0
+            occurrences = max(0, months)
+        case .none:
+            occurrences = 0
+        }
+
+        // Add subsequent transactions
+        for i in 1...occurrences {
+            var nextDate: Date?
+            switch baseTransaction.recurrenceType {
+            case .weekly:
+                nextDate = calendar.date(byAdding: .weekOfYear, value: i, to: baseTransaction.date)
+            case .monthly:
+                nextDate = calendar.date(byAdding: .month, value: i, to: baseTransaction.date)
+            case .none:
+                break
+            }
+
+            if let date = nextDate, date <= budgetPeriod.endDate {
+                let recurringTransaction = Transaction(
+                    amount: baseTransaction.amount,
+                    notes: baseTransaction.notes,
+                    date: date,
+                    categoryId: subCategory.id,
+                    isRecurring: true,
+                    recurrenceType: baseTransaction.recurrenceType
+                )
+                onSaveTransaction(recurringTransaction)
+            }
+        }
+    }
+
+    private func addTransactionWithBudgetUpdate() {
+        guard let transaction = pendingTransaction,
+              let category = selectedSubCategory,
+              let onUpdateBudget = onUpdateBudget else {
+            return
+        }
+
+        // Create updated budget with the transaction amount as the category budget
+        var updatedCategoryAmounts = categoryAmounts
+        updatedCategoryAmounts[category.id.uuidString] = transaction.amount
+
+        let updatedBudget = Budget(
+            id: budgetId,
+            period: budgetPeriod,
+            currency: currency,
+            categories: categories,
+            categoryAmounts: updatedCategoryAmounts
+        )
+
+        // Update the budget first
+        if onUpdateBudget(updatedBudget) {
+            // Then add the transaction
+            onSaveTransaction(transaction)
+            dismiss()
+        }
+
+        pendingTransaction = nil
     }
 }
 
 struct CategorySelectionCard: View {
-    let category: Category
+    let category: SubCategory
     let isSelected: Bool
     let onTap: () -> Void
     
@@ -130,26 +379,26 @@ struct CategorySelectionCard: View {
             HStack(spacing: 0) {
                 // Color Border (left edge)
                 Rectangle()
-                    .fill(category.color.color)
+                    .fill(category.categoryGroup.color)
                     .frame(width: 8)
                     .cornerRadius(8, corners: [.topLeft, .bottomLeft])
                 
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.xs) {
                     // Category Name
-                    DSText(category.name, font: .dsHeadline, color: theme.colors.primaryText)
+                    DSText(category.name, font: .dsHeadline, color: theme.colors.textPrimary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 
                     Spacer()
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 16)
+                .padding(.horizontal, DSSpacing.xs)
+                .padding(.vertical, DSSpacing.md)
             }
-            .background(theme.colors.card)
+            .background(theme.colors.surface)
             .cornerRadius(8)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(theme.colors.primaryText, lineWidth: isSelected ? 2 : 0)
+                    .stroke(theme.colors.primary, lineWidth: isSelected ? 2 : 0)
             )
         }
         .buttonStyle(PlainButtonStyle())
@@ -167,7 +416,7 @@ struct HorizontalDatePicker: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 8) {
+                LazyHStack(spacing: DSSpacing.xs) {
                     // Leading spacer for first item
                     Spacer()
                         .frame(width: 8)
@@ -194,7 +443,7 @@ struct HorizontalDatePicker: View {
                         .frame(width: 8)
                 }
             }
-            .frame(height: 82)
+            .frame(height: 70)
             .onAppear {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     // Find today's date in the range
@@ -229,24 +478,24 @@ struct DateCell: View {
     let isSelected: Bool
     let isDisabled: Bool
     let onTap: () -> Void
-    
+
     @Environment(\.appTheme) private var theme
     private let calendar = Calendar.current
-    
+
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 4) {
-                DSText(dayOfWeek, font: .dsCaption, color: isDisabled ? theme.colors.secondaryText.opacity(0.5) : theme.colors.secondaryText)
-                DSText(dayNumber, font: .dsHeadline, color: isDisabled ? theme.colors.primaryText.opacity(0.5) : theme.colors.primaryText)
+            VStack(spacing: DSSpacing.xxs) {
+                DSText(dayOfWeek, font: .dsCaption, color: isDisabled ? theme.colors.textSecondary.opacity(0.5) : theme.colors.textSecondary)
+                DSText(dayNumber, font: .dsHeadline, color: isDisabled ? theme.colors.textPrimary.opacity(0.5) : theme.colors.textPrimary)
                     .fontWeight(isSelected ? .medium : .regular)
             }
-            .frame(width: 48, height: 72)
-            .background(isDisabled ? theme.colors.card.opacity(0.5) : theme.colors.card)
+            .frame(width: 60, height: 60)  // Square shaped
+            .background(isDisabled ? theme.colors.surface.opacity(0.5) : theme.colors.surface)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(
-                        isSelected ? theme.colors.primaryText : Color.clear, 
+                        isSelected ? theme.colors.primary : Color.clear,
                         lineWidth: 2
                     )
             )
@@ -270,12 +519,26 @@ struct DateCell: View {
 
 #Preview {
     let budgetPeriod = BudgetPeriod(startDate: Date())
-    return AddTransactionSheet(
-        categories: Category.createDefault(),
+    let categories = SubCategory.createDefault()
+    let categoryAmounts = categories.reduce(into: [String: Double]()) { result, category in
+        result[category.id.uuidString] = 500.0
+    }
+
+    AddTransactionSheet(
+        budgetId: UUID(),
+        categories: categories,
         currency: Currency(code: "USD", name: "US Dollar", symbol: "$"),
         budgetPeriod: budgetPeriod,
-        budgetName: budgetPeriod.name
-    ) { transaction in
-        print("Added transaction: \(transaction)")
-    }
+        budgetName: budgetPeriod.name,
+        categoryAmounts: categoryAmounts,
+        existingTransaction: nil,
+        onSaveTransaction: { transaction in
+            print("Added transaction: \(transaction)")
+        },
+        onUpdateBudget: { budget in
+            print("Updated budget: \(budget)")
+            return true
+        },
+        onDeleteTransaction: nil
+    )
 }

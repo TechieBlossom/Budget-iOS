@@ -7,121 +7,582 @@
 
 import SwiftUI
 
+enum MainTab {
+    case budget
+    case analysis
+    case settings
+    case add
+}
+
 struct MainAppView: View {
     let budgetManager: BudgetManager
+    @Binding var showingBudgetSettings: Bool
     @Environment(\.appTheme) private var theme
-    @State private var expandedCategories: Set<UUID> = []
+    @State private var selectedTab: MainTab = .budget
+    @State private var expandedGroups: Set<CategoryGroup> = []
     @State private var showingAddTransaction = false
-    @State private var showingBudgetAnalysis = false
-    
-    init(budgetManager: BudgetManager) {
+    @State private var transactionToEdit: Transaction?
+    @State private var showingBudgetEdit = false
+    @State private var showingImportExport = false
+    @State private var showingEndBudgetConfirmation = false
+    @State private var notificationManager = NotificationManager()
+    @StateObject private var analysisViewModel: AnalysisViewModel
+    @State private var expensesOnlyMode = true  // On by default
+    @State private var showingCurrencySettings = false
+    @State private var showingPeriodSettings = false
+    @State private var showingCategorySettings = false
+    @State private var selectedCategory: SubCategory?
+    @State private var showingAllTransactions = false
+
+    init(budgetManager: BudgetManager, showingBudgetSettings: Binding<Bool>) {
         self.budgetManager = budgetManager
+        self._showingBudgetSettings = showingBudgetSettings
+        self._analysisViewModel = StateObject(wrappedValue: AnalysisViewModel(budgetManager: budgetManager))
     }
-    
+
+    private var sortedCategoryGroups: [CategoryGroup] {
+        // Get groups that have sub-categories with budgets (respect expenses-only mode)
+        let groupsWithBudget = CategoryGroup.allCases.filter { group in
+            let allocated = budgetManager.allocatedAmount(for: group, excludingSavings: expensesOnlyMode)
+            return allocated > 0
+        }
+
+        // Sort by spending percentage (highest first)
+        return groupsWithBudget.sorted { group1, group2 in
+            let percentage1 = budgetManager.spentPercentage(for: group1, excludingSavings: expensesOnlyMode)
+            let percentage2 = budgetManager.spentPercentage(for: group2, excludingSavings: expensesOnlyMode)
+            return percentage1 > percentage2
+        }
+    }
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-            // Top section with budget name and dates
-            HStack {
-                Spacer()
-                VStack(alignment: .center, spacing: 2) {
-                    DSText(budgetManager.budget.budgetName, font: .dsHeadline, color: theme.colors.primaryText)
-                    DSText(budgetManager.budget.period.formattedDateRange, font: .dsCaption, color: theme.colors.secondaryText)
+            TabView(selection: $selectedTab) {
+                Tab("Budget", systemImage: "dollarsign.circle", value: .budget) {
+                    budgetTabContent
                 }
-                Spacer()
+
+                Tab("Analysis", systemImage: "chart.bar", value: .analysis) {
+                    analysisTabContent
+                }
+
+                Tab("Settings", systemImage: "gearshape", value: .settings) {
+                    settingsTabContent
+                }
+
+                Tab("Add", systemImage: "plus.circle", value: .add, role: .search) {
+
+                }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 24)
-            
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Budget Section
-                    VStack(spacing: 16) {
-                        // Budget Overview Hero Card
-                        Button(action: {
-                            showingBudgetAnalysis = true
-                        }) {
-                            OverviewHeroCard(budgetManager: budgetManager)
+            .tint(theme.colors.primary)
+            .background(theme.colors.background)
+            .customNavigationBarAppearance()
+            .onChange(of: selectedTab) { oldValue, newValue in
+                // Intercept add tab tap and show transaction sheet
+                if newValue == .add {
+                    HapticManager.shared.buttonTap()
+                    showingAddTransaction = true
+                    // Revert to previous tab so user stays where they were
+                    selectedTab = oldValue
+                }
+            }
+            .navigationBarBackButtonHidden(false)
+            .snackbar(notificationManager)
+            .fullScreenCover(isPresented: $showingAddTransaction) {
+                AddTransactionSheet(
+                    budgetId: budgetManager.budget.id,
+                    categories: budgetManager.budget.categories,
+                    currency: budgetManager.budget.currency,
+                    budgetPeriod: budgetManager.budget.period,
+                    budgetName: budgetManager.budget.budgetName,
+                    categoryAmounts: budgetManager.budget.categoryAmounts,
+                    existingTransaction: nil,
+                    onSaveTransaction: { transaction in
+                        if budgetManager.addTransaction(transaction) {
+                            HapticManager.shared.transactionAdded()
+                            notificationManager.showSuccess("Transaction added successfully!")
+                        } else {
+                            HapticManager.shared.operationFailed()
+                            notificationManager.showError("Failed to add transaction")
                         }
-                        .buttonStyle(PlainButtonStyle())
-                        .padding(.horizontal, 16)
-                    }
-                    
-                    // Spends Section
-                    VStack(spacing: 16) {
-                        // Section Header
-                        HStack {
-                            DSText("Spends", font: .dsSmallTitle, color: theme.colors.primaryText)
-                            Spacer()
+                        showingAddTransaction = false
+                    },
+                    onUpdateBudget: { updatedBudget in
+                        return budgetManager.updateBudget(updatedBudget)
+                    },
+                    onDeleteTransaction: nil
+                )
+            }
+            .fullScreenCover(item: $transactionToEdit) { transaction in
+                AddTransactionSheet(
+                    budgetId: budgetManager.budget.id,
+                    categories: budgetManager.budget.categories,
+                    currency: budgetManager.budget.currency,
+                    budgetPeriod: budgetManager.budget.period,
+                    budgetName: budgetManager.budget.budgetName,
+                    categoryAmounts: budgetManager.budget.categoryAmounts,
+                    existingTransaction: transaction,
+                    onSaveTransaction: { updatedTransaction in
+                        if budgetManager.updateTransaction(updatedTransaction) {
+                            HapticManager.shared.success()
+                            notificationManager.showSuccess("Transaction updated successfully!")
+                        } else {
+                            HapticManager.shared.operationFailed()
+                            notificationManager.showError("Failed to update transaction")
                         }
-                        .padding(.horizontal, 16)
-                        
-                        // Category Cards
-                        LazyVStack(spacing: 16) {
-                            ForEach(budgetManager.budget.categories) { category in
-                                CategoryExpendableCard(
-                                    category: category,
-                                    budgetManager: budgetManager,
-                                    isExpanded: expandedCategories.contains(category.id)
-                                ) {
-                                    toggleExpansion(for: category)
+                        transactionToEdit = nil
+                    },
+                    onUpdateBudget: { updatedBudget in
+                        return budgetManager.updateBudget(updatedBudget)
+                    },
+                    onDeleteTransaction: { transactionToDelete in
+                        if budgetManager.deleteTransaction(transactionToDelete) {
+                            HapticManager.shared.transactionDeleted()
+                            notificationManager.showUndo("Transaction deleted") {
+                                if budgetManager.undoLastTransaction() {
+                                    HapticManager.shared.transactionRestored()
+                                    notificationManager.showSuccess("Transaction restored!")
+                                } else {
+                                    HapticManager.shared.operationFailed()
+                                    notificationManager.showError("Failed to restore transaction")
                                 }
                             }
+                        } else {
+                            HapticManager.shared.operationFailed()
+                            notificationManager.showError("Failed to delete transaction")
                         }
-                        .padding(.horizontal, 16)
+                        transactionToEdit = nil
+                    }
+                )
+            }
+            .navigationDestination(item: $selectedCategory) { category in
+                CategoryDetailView(category: category, budgetManager: budgetManager)
+            }
+            .navigationDestination(isPresented: $showingAllTransactions) {
+                AllTransactionsView(budgetManager: budgetManager)
+            }
+            .fullScreenCover(isPresented: $showingBudgetEdit) {
+                BudgetEditView(budgetManager: budgetManager, onBudgetUpdated: {})
+            }
+            .navigationDestination(isPresented: $showingImportExport) {
+                ImportExportView(budgetManager: budgetManager)
+            }
+            .fullScreenCover(isPresented: $showingEndBudgetConfirmation) {
+                BudgetExpiredView(
+                    budgetManager: budgetManager,
+                    isManualEnd: true,
+                    onContinueWithSameSettings: {
+                        if budgetManager.createNextPeriodBudget() {
+                            showingEndBudgetConfirmation = false
+                            // Schedule notifications for the new budget
+                            if let budget = budgetManager.currentBudget {
+                                NotificationService.shared.scheduleBudgetEndNotifications(for: budget)
+                            }
+                        }
+                    },
+                    onChangeBudgetSettings: {
+                        showingEndBudgetConfirmation = false
+                        // Stay in settings to configure new budget
+                    },
+                    onCancel: {
+                        showingEndBudgetConfirmation = false
+                    }
+                )
+            }
+            .alertBanner()
+            .navigationDestination(isPresented: $showingBudgetSettings) {
+                BudgetSettingsView(budgetManager: budgetManager)
+            }
+            .sheet(isPresented: $showingCurrencySettings) {
+                CurrencySettingsView(
+                    currentBudget: budgetManager.budget,
+                    onUpdateBudget: { updatedBudget in
+                        if budgetManager.updateBudget(updatedBudget) {
+                            HapticManager.shared.success()
+                            notificationManager.showSuccess("Currency updated successfully!")
+                        } else {
+                            HapticManager.shared.operationFailed()
+                            notificationManager.showError("Failed to update currency")
+                        }
+                    }
+                )
+            }
+            .sheet(isPresented: $showingPeriodSettings) {
+                PeriodSettingsView(
+                    currentBudget: budgetManager.budget,
+                    onUpdateBudget: { updatedBudget in
+                        if budgetManager.updateBudget(updatedBudget) {
+                            HapticManager.shared.success()
+                            notificationManager.showSuccess("Budget period updated successfully!")
+                        } else {
+                            HapticManager.shared.operationFailed()
+                            notificationManager.showError("Failed to update budget period")
+                        }
+                    }
+                )
+            }
+            .sheet(isPresented: $showingCategorySettings) {
+                CategorySettingsView(
+                    currentBudget: budgetManager.budget,
+                    budgetManager: budgetManager,
+                    onUpdateBudget: { updatedBudget in
+                        if budgetManager.updateBudget(updatedBudget) {
+                            HapticManager.shared.success()
+                            notificationManager.showSuccess("Categories updated successfully!")
+                        } else {
+                            HapticManager.shared.operationFailed()
+                            notificationManager.showError("Failed to update categories")
+                        }
+                    }
+                )
+            }
+            .onAppear {
+                setupNotifications()
+            }
+            .toolbar {
+                // Only show toolbar items when Budget tab is selected
+                if selectedTab == .budget {
+                    ToolbarItem(placement: .principal) {
+                        VStack(spacing: DSSpacing.md) {
+                            // Centered budget name and navigation
+                            HStack(spacing: DSSpacing.md) {
+                                // Previous budget button
+                                Button(action: {
+                                    HapticManager.shared.buttonTap()
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        _ = budgetManager.switchToPreviousBudget()
+                                    }
+                                }) {
+                                    Image(systemName: "chevron.left")
+                                        .font(.dsHeadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(budgetManager.canSwitchToPrevious() ? theme.colors.textPrimary : theme.colors.textSecondary.opacity(0.3))
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .disabled(!budgetManager.canSwitchToPrevious())
+                                
+                                VStack(alignment: .center, spacing: 2) {
+                                    DSText(budgetManager.budget.budgetName, font: .dsHeadline, color: theme.colors.textPrimary)
+                                    DSText(budgetManager.budget.period.formattedDateRange, font: .dsCaption, color: theme.colors.textSecondary)
+                                }
+                                
+                                // Next budget button
+                                Button(action: {
+                                    HapticManager.shared.buttonTap()
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        _ = budgetManager.switchToNextBudget()
+                                    }
+                                }) {
+                                    Image(systemName: "chevron.right")
+                                        .font(.dsHeadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(budgetManager.canSwitchToNext() ? theme.colors.textPrimary : theme.colors.textSecondary.opacity(0.3))
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .disabled(!budgetManager.canSwitchToNext())
+                            }
+                        }
+                    }
+                    
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button(action: {
+                                HapticManager.shared.buttonTap()
+                                showingCurrencySettings = true
+                            }) {
+                                Label {
+                                    VStack(alignment: .leading) {
+                                        DSText("Change Currency", font: .dsBody)
+                                        DSText("\(budgetManager.budget.currency.code) - \(budgetManager.budget.currency.name)", font: .dsCaption, color: theme.colors.textSecondary)
+                                    }
+                                } icon: {
+                                    Image(systemName: "dollarsign.circle")
+                                }
+                            }
+                            Button(action: {
+                                HapticManager.shared.buttonTap()
+                                showingPeriodSettings = true
+                            }) {
+                                Label {
+                                    VStack(alignment: .leading) {
+                                        DSText("Budget Period", font: .dsBody)
+                                        DSText(budgetManager.budget.period.formattedDateRange, font: .dsCaption, color: theme.colors.textSecondary)
+                                    }
+                                } icon: {
+                                    Image(systemName: "calendar")
+                                }
+                            }
+                            Button(action: {
+                                HapticManager.shared.buttonTap()
+                                showingCategorySettings = true
+                            }) {
+                                Label {
+                                    VStack(alignment: .leading) {
+                                        DSText("Categories", font: .dsBody)
+                                        DSText("\(budgetManager.budget.categories.count) Categories", font: .dsCaption, color: theme.colors.textSecondary)
+                                    }
+                                } icon: {
+                                    Image(systemName: "square.grid.2x2")
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "pencil.circle")
+                                .font(.dsSmallTitle)
+                                .fontWeight(.medium)
+                                .foregroundColor(theme.colors.textPrimary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Tab Contents
+
+    private var budgetTabContent: some View {
+            ScrollView {
+                VStack(spacing: DSSpacing.xl) {                    // Budget Section
+                    VStack(spacing: DSSpacing.md) {
+                        // Section Header with Toggle
+                        HStack {
+                            DSText("Budget Overview", font: .dsSmallTitle, color: theme.colors.textPrimary)
+                            Spacer()
+
+                            // Expenses Only Toggle
+                            HStack(spacing: DSSpacing.xs) {
+                                DSText("Expenses Only", font: .dsCaption, color: theme.colors.textSecondary)
+                                Toggle("", isOn: $expensesOnlyMode)
+                                    .labelsHidden()
+                                    .tint(theme.colors.primary)
+                            }
+                        }
+                        .padding(.horizontal, DSSpacing.md)
+
+                        // Budget Overview Hero Card
+                        OverviewHeroCard(budgetManager: budgetManager, excludeSavings: expensesOnlyMode)
+                            .padding(.horizontal, DSSpacing.md)
+                            .id(budgetManager.budget.id)
+                            .transition(.opacity)
+                            .animation(.easeOut(duration: 0.2), value: budgetManager.budget.id)
+                    }
+
+                    // Chart Section - Category Groups
+                    VStack(alignment: .leading, spacing: DSSpacing.md) {
+                        // Heading
+                        HStack {
+                            DSText("Spending by Category", font: .dsSmallTitle, color: theme.colors.textPrimary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, DSSpacing.md)
+
+                        // Single Chart - Group-based spending
+                        CategoryGroupBarChart(budgetManager: budgetManager)
+                    }
+ 
+                    // All Transactions Link
+                    if !budgetManager.getAllTransactions().isEmpty {
+                        VStack(spacing: DSSpacing.md) {
+                            DSButtonCard(
+                                "View All Transactions",
+                                subtitle: "\(budgetManager.getAllTransactions().count) transactions"
+                            ) {
+                                HapticManager.shared.buttonTap()
+                                Task { @MainActor in
+                                    showingAllTransactions = true
+                                }
+                            }
+                            .padding(.horizontal, DSSpacing.md)
+                        }
+                    }
+
+                    // Spends Section
+                    if !sortedCategoryGroups.isEmpty {
+                        VStack(spacing: DSSpacing.md) {
+                            // Section Header
+                            HStack {
+                                DSText("Spends", font: .dsSmallTitle, color: theme.colors.textPrimary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, DSSpacing.md)
+
+                            // Category Group Cards
+                            LazyVStack(spacing: DSSpacing.md) {
+                                ForEach(sortedCategoryGroups, id: \.self) { group in
+                                    CategoryGroupExpendableCard(
+                                        group: group,
+                                        budgetManager: budgetManager,
+                                        isExpanded: expandedGroups.contains(group),
+                                        onToggle: {
+                                            toggleExpansion(for: group)
+                                        },
+                                        onSubCategoryTap: { subCategory in
+                                            HapticManager.shared.buttonTap()
+                                            selectedCategory = subCategory
+                                        }
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, DSSpacing.md)
+                            .id(budgetManager.budget.id)
+                            .transition(.opacity)
+                            .animation(.easeOut(duration: 0.2), value: budgetManager.budget.id)
+                        }
                     }
                     
                     // Bottom spacing
                     Rectangle()
                         .fill(Color.clear)
-                        .frame(height: 40)
+                        .frame(height: 16)
+                }.padding(.top, DSSpacing.lg)
+            }
+        .background(theme.colors.background)
+    }
+
+    private var analysisTabContent: some View {
+        VStack(spacing: 0) {
+            // Page Title
+            HStack {
+                DSText("Analysis", font: .dsLargeTitle, color: theme.colors.textPrimary)
+                    .fontWeight(.bold)
+                Spacer()
+            }
+            .padding(.horizontal, DSSpacing.md)
+            .padding(.top, DSSpacing.md)
+            .padding(.bottom, DSSpacing.xs)
+
+            ScrollView {
+                VStack(spacing: DSSpacing.xl) {
+                    DSCard {
+                        VStack(spacing: DSSpacing.sm) {
+                            Image(systemName: "chart.bar.xaxis")
+                                .font(.dsLargeTitle)
+                                .foregroundColor(theme.colors.textSecondary.opacity(0.6))
+
+                            DSText("Analysis Coming Soon", font: .dsBody, color: theme.colors.textPrimary)
+                                .fontWeight(.medium)
+                            DSText("Detailed spending analysis and insights will be available here", font: .dsCaption, color: theme.colors.textSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                    }
+                    .padding(.horizontal, DSSpacing.md)
+
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(height: 100)
                 }
             }
         }
         .background(theme.colors.background)
-        .navigationDestination(isPresented: $showingAddTransaction) {
-            AddTransactionSheet(
-                categories: budgetManager.budget.categories,
-                currency: budgetManager.budget.currency,
-                budgetPeriod: budgetManager.budget.period,
-                budgetName: budgetManager.budget.budgetName
-            ) { transaction in
-                _ = budgetManager.addTransaction(transaction)
-                showingAddTransaction = false
-            }
-        }
-        .navigationDestination(isPresented: $showingBudgetAnalysis) {
-            BudgetAnalysisView(budgetManager: budgetManager)
-        }
-        .overlay(
-            // Floating Action Button
-            VStack {
+    }
+
+    private var settingsTabContent: some View {
+        VStack(spacing: 0) {
+            // Page Title
+            HStack {
+                DSText("Settings", font: .dsLargeTitle, color: theme.colors.textPrimary)
+                    .fontWeight(.bold)
                 Spacer()
-                HStack {
-                    Spacer()
-                    DSIconButton(type: .add) {
-                        showingAddTransaction = true
-                    }
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 16)
-                }
             }
-        )
+            .padding(.horizontal, DSSpacing.md)
+            .padding(.top, DSSpacing.md)
+            .padding(.bottom, DSSpacing.xs)
+
+            ScrollView {
+                VStack(spacing: DSSpacing.xl) {
+                    // Import/Export Section
+                    SettingsSection(
+                        title: "Import/Export",
+                        currentValue: "",
+                        description: "Export or import budget data",
+                        useSmallText: false,
+                        isDisabled: false
+                    ) {
+                        showingImportExport = true
+                    }
+                    .padding(.horizontal, DSSpacing.md)
+
+                    // Divider
+                    if budgetManager.isViewingMostRecentBudget() {
+                        Divider()
+                            .padding(.vertical, DSSpacing.xs)
+                            .padding(.horizontal, DSSpacing.md)
+
+                        // End Budget Section (only for current budget)
+                        EndBudgetSection {
+                            showingEndBudgetConfirmation = true
+                        }
+                        .padding(.horizontal, DSSpacing.md)
+                    }
+
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(height: 100)
+                }
+                .padding(.top, DSSpacing.xs)
+            }
+        }
+        .background(theme.colors.background)
+    }
+
+
+    // MARK: - Setup Methods
+
+    private func setupNotifications() {
+        // Request notification permission if not already granted
+        Task {
+            if NotificationService.shared.authorizationStatus == .notDetermined {
+                await NotificationService.shared.requestNotificationPermission()
+            }
+
+            // Schedule smart daily reminders based on recent activity
+            let transactions = budgetManager.getAllTransactions()
+            NotificationService.shared.scheduleSmartDailyReminder(basedOnTransactions: transactions)
+
+            // Schedule budget end notifications for current budget
+            if let currentBudget = budgetManager.currentBudget {
+                NotificationService.shared.scheduleBudgetEndNotifications(for: currentBudget)
+            }
+
+            // Apply current notification settings
+            let settings = UserDefaults.standard.notificationSettings
+            applyNotificationSettings(settings)
         }
     }
-    
-    private func toggleExpansion(for category: Category) {
+
+    private func applyNotificationSettings(_ settings: NotificationSettings) {
+        let service = NotificationService.shared
+
+        if settings.dailyRemindersEnabled {
+            let components = Calendar.current.dateComponents([.hour, .minute], from: settings.dailyReminderTime)
+            service.scheduleDailyExpenseReminder(
+                at: components.hour ?? 19,
+                minute: components.minute ?? 0,
+                isEnabled: true
+            )
+        }
+
+        if settings.weeklyReviewEnabled {
+            let components = Calendar.current.dateComponents([.hour, .minute], from: settings.weeklyReviewTime)
+            service.scheduleWeeklyReview(
+                on: settings.weeklyReviewDay,
+                at: components.hour ?? 10,
+                minute: components.minute ?? 0,
+                isEnabled: true
+            )
+        }
+    }
+
+    private func toggleExpansion(for group: CategoryGroup) {
         withAnimation(.easeInOut(duration: 0.3)) {
-            if expandedCategories.contains(category.id) {
-                expandedCategories.remove(category.id)
+            if expandedGroups.contains(group) {
+                expandedGroups.remove(group)
             } else {
-                expandedCategories.insert(category.id)
+                expandedGroups.insert(group)
             }
         }
     }
 }
 
-// MARK: - Preserved Wavy Shape Components (for future use)
-// Note: CurvedClipShape and wavy progress components are preserved in BudgetOverviewCard.swift
-// Note: OverviewHeroCard is defined in BudgetAnalysisView.swift and reused here
+// MARK: - Tab Bar Button Component

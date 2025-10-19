@@ -14,9 +14,9 @@ struct DSListItem<Content: View>: View {
     var body: some View {
         Button(action: action ?? {}) {
             content
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(theme.colors.card)
+                .padding(.horizontal, DSSpacing.md)
+                .padding(.vertical, DSSpacing.sm)
+                .background(theme.colors.surface)
                 .cornerRadius(8)
         }
         .buttonStyle(PlainButtonStyle())
@@ -37,12 +37,12 @@ struct DSList<Data: RandomAccessCollection, Content: View>: View where Data.Elem
     
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 8) {
+            LazyVStack(spacing: DSSpacing.xs) {
                 ForEach(data, id: \.id) { item in
                     content(item)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, DSSpacing.md)
         }
         .background(theme.colors.background)
     }
@@ -64,13 +64,13 @@ private struct PreviewItem: Identifiable {
     return DSList(items) { item in
         DSListItem(action: { print("Tapped \(item.title)") }) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     DSText(item.title, font: .dsHeadline)
-                    DSText(item.subtitle, font: .dsBody, color: AppTheme.shared.colors.secondaryText)
+                    DSText(item.subtitle, font: .dsBody, color: AppTheme.shared.colors.textSecondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .foregroundColor(AppTheme.shared.colors.secondaryText)
+                    .foregroundColor(AppTheme.shared.colors.textSecondary)
             }
         }
     }

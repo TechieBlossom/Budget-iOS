@@ -113,22 +113,34 @@ struct BudgetPeriod {
     
     private static func generateMonthlyName(for startDate: Date, endDate: Date) -> String {
         let calendar = Calendar.current
-        let today = Date()
         let monthFormatter = DateFormatter()
         monthFormatter.dateFormat = "MMMM yyyy"
-        
-        // Normalize both dates to start of day to avoid time component issues
-        let startOfStartDate = calendar.startOfDay(for: startDate)
-        let startOfToday = calendar.startOfDay(for: today)
-        
-        // Use the same logic as date shifting to determine budget name
-        if calendar.compare(startOfStartDate, to: startOfToday, toGranularity: .day) == .orderedDescending {
-            // Start date is in the future - this is a previous month budget
-            let previousMonth = calendar.date(byAdding: .month, value: -1, to: today) ?? today
-            return "\(monthFormatter.string(from: previousMonth)) Budget"
+
+        // Check if the budget period spans multiple months
+        let startMonth = calendar.component(.month, from: startDate)
+        let endMonth = calendar.component(.month, from: endDate)
+        let startYear = calendar.component(.year, from: startDate)
+        let endYear = calendar.component(.year, from: endDate)
+
+        // If same month and year, use that month
+        if startMonth == endMonth && startYear == endYear {
+            return "\(monthFormatter.string(from: startDate)) Budget"
+        }
+
+        // If spans multiple months, use the month with more days in the budget period
+        // Calculate days in start month
+        let startMonthEnd = calendar.date(from: DateComponents(year: startYear, month: startMonth + 1, day: 0)) ?? startDate
+        let daysInStartMonth = calendar.dateComponents([.day], from: startDate, to: min(startMonthEnd, endDate)).day ?? 0
+
+        // Calculate days in end month
+        let endMonthStart = calendar.date(from: DateComponents(year: endYear, month: endMonth, day: 1)) ?? endDate
+        let daysInEndMonth = calendar.dateComponents([.day], from: max(endMonthStart, startDate), to: endDate).day ?? 0
+
+        // Use the month with more days (or start month if equal)
+        if daysInStartMonth >= daysInEndMonth {
+            return "\(monthFormatter.string(from: startDate)) Budget"
         } else {
-            // Start date is today or in the past - this is a current month budget
-            return "\(monthFormatter.string(from: today)) Budget"
+            return "\(monthFormatter.string(from: endDate)) Budget"
         }
     }
     

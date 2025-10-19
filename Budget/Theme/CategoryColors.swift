@@ -1,65 +1,30 @@
 import SwiftUI
 
-enum CategoryColor: String, CaseIterable, Identifiable {
-    case color1 = "#FF6B6B"  // Housing
-    case color2 = "#4ECDC4"  // Healthcare  
-    case color3 = "#45B7D1"  // Transportation
-    case color4 = "#96CEB4"  // Utility
-    case color5 = "#FFEAA7"  // Groceries
-    case color6 = "#DDA0DD"  // Food & Dining
-    case color7 = "#98D8C8"  // Entertainment
-    case color8 = "#F7DC6F"  // Available for user categories
-    case color9 = "#BB8FCE"  // Others
-    case color10 = "#F8C291"
-    case color11 = "#70A1FF"
-    case color12 = "#7BED9F"
-    case color13 = "#FF7675"
-    case color14 = "#A29BFE"
-    case color15 = "#FD79A8"
-    
-    var id: String { rawValue }
-    
-    var hex: String { rawValue }
-    
-    var color: Color {
-        Color(hex: rawValue)
-    }
-    
-    static let defaultCategoryAssignments: [DefaultCategory: CategoryColor] = [
-        .housing: .color1,
-        .healthcare: .color2,
-        .transportation: .color3,
-        .utility: .color4,
-        .groceries: .color5,
-        .foodDining: .color6,
-        .entertainment: .color7,
-        .others: .color9
-    ]
-    
-    static var availableForUserCategories: [CategoryColor] {
-        [.color8, .color10, .color11, .color12, .color13, .color14, .color15]
-    }
-    
-    static func unusedColors(excluding usedColors: [CategoryColor]) -> [CategoryColor] {
-        availableForUserCategories.filter { !usedColors.contains($0) }
-    }
-}
+// MARK: - Color Extension for Hex Support
+// This extension is kept to support hex color initialization used by CategoryGroup
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
 
-enum DefaultCategory: String, CaseIterable {
-    case housing = "Housing"
-    case healthcare = "Healthcare"
-    case transportation = "Transportation"
-    case utility = "Utility"
-    case groceries = "Groceries"
-    case foodDining = "Food & Dining"
-    case entertainment = "Entertainment"
-    case others = "Others"
-    
-    var displayName: String {
-        rawValue
-    }
-    
-    var assignedColor: CategoryColor {
-        CategoryColor.defaultCategoryAssignments[self] ?? .color9
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue:  Double(b) / 255,
+            opacity: Double(a) / 255
+        )
     }
 }

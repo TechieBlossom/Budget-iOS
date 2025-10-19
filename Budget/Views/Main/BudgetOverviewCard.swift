@@ -64,26 +64,26 @@ struct BudgetOverviewCard: View {
                     VStack(alignment: .leading) {
                         // Budget Amount (without "Budget" label)
                         VStack(alignment: .leading) {
-                            DSText(budgetManager.budget.formattedTotalAmount, font: .dsLargeTitle, color: theme.colors.primaryText)
-                        }.padding(.bottom, 16)
+                            DSText(budgetManager.budget.formattedTotalAmount, font: .dsLargeTitle, color: theme.colors.textPrimary)
+                        }.padding(.bottom, DSSpacing.md)
                         
                         // Spent Amount
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(alignment: .bottom, spacing: 4) {
-                                DSText("Spent: ", font: .dsBody, color: theme.colors.secondaryText)
-                                DSText(String(format: "%.2f", budgetManager.totalSpent), font: .dsHeadline, color: theme.colors.primaryText)
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                            HStack(alignment: .bottom, spacing: DSSpacing.xxs) {
+                                DSText("Spent: ", font: .dsBody, color: theme.colors.textSecondary)
+                                DSText(String(format: "%.2f", budgetManager.totalSpent), font: .dsHeadline, color: theme.colors.textPrimary)
                             }
                             
                             // Remains Amount
-                            HStack(alignment: .bottom, spacing: 4) {
-                                DSText("Remain: ", font: .dsBody, color: theme.colors.secondaryText)
-                                DSText(String(format: "%.2f", budgetManager.totalRemains), font: .dsHeadline, color: theme.colors.primaryText)
+                            HStack(alignment: .bottom, spacing: DSSpacing.xxs) {
+                                DSText("Remain: ", font: .dsBody, color: theme.colors.textSecondary)
+                                DSText(String(format: "%.2f", budgetManager.totalRemains), font: .dsHeadline, color: theme.colors.textPrimary)
                             }
                         }
-                        .padding(.bottom, 24)
+                        .padding(.bottom, DSSpacing.xl)
                     }
-                    .padding(.leading, 16)
-                    .padding(.trailing, 8)
+                    .padding(.leading, DSSpacing.md)
+                    .padding(.trailing, DSSpacing.xs)
                     .frame(width: cardGeometry.size.width * 0.7, alignment: .leading)
                     
                     // Right section (30% width) - Vertical Progress with curved clip
@@ -94,16 +94,16 @@ struct BudgetOverviewCard: View {
                                 ZStack(alignment: .bottom) {
                                     // Background
                                     Rectangle()
-                                        .fill(theme.colors.accent)
-                                    
+                                        .fill(theme.colors.primaryLight.opacity(0.3))
+
                                     // Progress fill (from bottom to top)
                                     Rectangle()
-                                        .fill(theme.colors.primaryText)
+                                        .fill(theme.colors.primary)
                                         .frame(height: max(0, progressGeometry.size.height * min(1.0, max(0, budgetManager.spentPercentage))))
                                         .animation(.easeInOut(duration: 0.8), value: budgetManager.spentPercentage)
                                     
-                                    DSText("\(Int(budgetManager.spentPercentage * 100))%", font: .dsTitle, color: theme.colors.card)
-                                        .padding(.bottom, 8)
+                                    DSText("\(Int(budgetManager.spentPercentage * 100))%", font: .dsTitle, color: theme.colors.surface)
+                                        .padding(.bottom, DSSpacing.xs)
                                         .animation(.easeInOut(duration: 0.8), value: budgetManager.spentPercentage)
                                 }
                         
@@ -120,6 +120,6 @@ struct BudgetOverviewCard: View {
 
 #Preview {
     BudgetOverviewCard(budgetManager: MockBudgetManager(budget: Budget.createSample()))
-        .padding()
+        .padding(DSSpacing.md)
         .background(AppTheme.shared.colors.background)
 }

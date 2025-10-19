@@ -21,22 +21,4 @@ enum BudgetType: String, CaseIterable, Codable {
             return "Set your own date range"
         }
     }
-    
-    var index: Int {
-        switch self {
-        case .monthly:
-            return 0
-        case .custom:
-            return 1
-        }
-    }
-    
-    static func fromIndex(_ index: Int) -> BudgetType {
-        switch index {
-        case 1:
-            return .custom
-        default:
-            return .monthly
-        }
-    }
 }
