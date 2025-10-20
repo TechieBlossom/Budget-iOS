@@ -10,6 +10,7 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var hasCompletedOnboarding = false
     @State private var budgetManager: BudgetManager?
     @State private var showingBudgetExpired = false
@@ -112,6 +113,12 @@ struct ContentView: View {
             if let manager = budgetManager {
                 checkBudgetStatus(manager: manager)
             }
+            // Update theme based on system color scheme
+            AppTheme.shared.updateColorScheme(systemScheme: systemColorScheme)
+        }
+        .onChange(of: systemColorScheme) { _, newScheme in
+            // Update theme when system color scheme changes
+            AppTheme.shared.updateColorScheme(systemScheme: newScheme)
         }
     }
 

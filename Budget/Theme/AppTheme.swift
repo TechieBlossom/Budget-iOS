@@ -1,13 +1,45 @@
 import SwiftUI
 
+enum ThemePreference: String, Codable, CaseIterable {
+    case system = "System"
+    case light = "Light"
+    case dark = "Dark"
+
+    var displayName: String {
+        return rawValue
+    }
+}
+
 @Observable
 class AppTheme {
     var colorScheme: ColorScheme = .light
-    
+    var themePreference: ThemePreference = .system {
+        didSet {
+            UserDefaults.standard.set(themePreference.rawValue, forKey: "themePreference")
+        }
+    }
+
     static let shared = AppTheme()
-    
-    private init() {}
-    
+
+    private init() {
+        // Load saved theme preference
+        if let savedPreference = UserDefaults.standard.string(forKey: "themePreference"),
+           let preference = ThemePreference(rawValue: savedPreference) {
+            self.themePreference = preference
+        }
+    }
+
+    func updateColorScheme(systemScheme: ColorScheme) {
+        switch themePreference {
+        case .system:
+            colorScheme = systemScheme
+        case .light:
+            colorScheme = .light
+        case .dark:
+            colorScheme = .dark
+        }
+    }
+
     var colors: ThemeColors {
         switch colorScheme {
         case .light:

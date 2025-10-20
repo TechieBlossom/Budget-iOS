@@ -491,6 +491,15 @@ struct MainAppView: View {
 
             ScrollView {
                 VStack(spacing: DSSpacing.xl) {
+                    // Theme Section
+                    ThemeSettingsSection()
+                        .padding(.horizontal, DSSpacing.md)
+
+                    // Divider
+                    Divider()
+                        .padding(.vertical, DSSpacing.xs)
+                        .padding(.horizontal, DSSpacing.md)
+
                     // Import/Export Section
                     SettingsSection(
                         title: "Import/Export",
@@ -581,6 +590,78 @@ struct MainAppView: View {
             } else {
                 expandedGroups.insert(group)
             }
+        }
+    }
+}
+
+// MARK: - Theme Settings Component
+
+struct ThemeSettingsSection: View {
+    @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var systemColorScheme
+
+    var body: some View {
+        DSCard(padding: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    DSText("Theme", font: .dsHeadline, color: theme.colors.textPrimary)
+                    DSText("Choose your app appearance", font: .dsCaption, color: theme.colors.textSecondary)
+                }
+
+                HStack(spacing: DSSpacing.sm) {
+                    ForEach(ThemePreference.allCases, id: \.self) { preference in
+                        ThemeButton(preference: preference, systemColorScheme: systemColorScheme)
+                    }
+                }
+            }
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.sm)
+        }
+    }
+}
+
+struct ThemeButton: View {
+    let preference: ThemePreference
+    let systemColorScheme: ColorScheme
+    @Environment(\.appTheme) private var theme
+
+    private var isSelected: Bool {
+        theme.themePreference == preference
+    }
+
+    var body: some View {
+        Button(action: {
+            HapticManager.shared.buttonTap()
+            theme.themePreference = preference
+            theme.updateColorScheme(systemScheme: systemColorScheme)
+        }) {
+            VStack(spacing: DSSpacing.xs) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(isSelected ? theme.colors.primary.opacity(0.1) : theme.colors.surfaceVariant)
+                        .frame(height: 60)
+
+                    Image(systemName: iconName)
+                        .font(.dsTitle)
+                        .foregroundColor(isSelected ? theme.colors.primary : theme.colors.textSecondary)
+                }
+
+                DSText(preference.displayName, font: .dsCaption, color: isSelected ? theme.colors.primary : theme.colors.textSecondary)
+                    .fontWeight(isSelected ? .semibold : .regular)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .frame(maxWidth: .infinity)
+    }
+
+    private var iconName: String {
+        switch preference {
+        case .system:
+            return "gearshape.fill"
+        case .light:
+            return "sun.max.fill"
+        case .dark:
+            return "moon.fill"
         }
     }
 }
