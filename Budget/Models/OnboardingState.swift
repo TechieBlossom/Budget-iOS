@@ -156,8 +156,12 @@ class OnboardingState {
 
     // Category Manager wrapper methods to ensure proper observation
     // These methods ensure the view updates when categoryManager changes
-    func addSubCategory(name: String, group: CategoryGroup, categoryType: CategoryType? = nil) {
+    func addSubCategory(name: String, group: CategoryGroup, categoryType: CategoryType? = nil, allocatedAmount: Double = 0) {
         categoryManager.addSubCategory(name: name, group: group, categoryType: categoryType)
+        // Set the allocated amount for the new category
+        if let newCategory = categoryManager.subCategories.last {
+            categoryAmounts[newCategory.id.uuidString] = allocatedAmount
+        }
     }
 
     func removeSubCategory(_ subCategory: SubCategory) {
@@ -166,8 +170,8 @@ class OnboardingState {
         categoryAmounts.removeValue(forKey: subCategory.id.uuidString)
     }
 
-    func updateSubCategory(_ subCategory: SubCategory, name: String, categoryType: CategoryType? = nil) {
-        categoryManager.updateSubCategory(subCategory, name: name, categoryType: categoryType)
+    func updateSubCategory(_ subCategory: SubCategory, name: String, group: CategoryGroup? = nil, categoryType: CategoryType? = nil) {
+        categoryManager.updateSubCategory(subCategory, name: name, group: group, categoryType: categoryType)
     }
 
     func toggleCategoryType(for subCategory: SubCategory) {

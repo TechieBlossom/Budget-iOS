@@ -10,14 +10,11 @@ struct CategorySettingsView: View {
     @State private var subCategories: [SubCategory]
     @State private var categoryAmounts: [String: Double]
     @State private var showingAddCategory = false
-    @State private var newCategoryName = ""
-    @State private var selectedGroup: CategoryGroup?
     @State private var totalBudgetAmount: Double
     @State private var showingDeleteConfirmation = false
     @State private var subCategoryToDelete: SubCategory?
     @State private var editingSubCategory: SubCategory?
-    @State private var isEditMode = false
-    @State private var editingCategoryType: CategoryType = .expense
+    @State private var editingCategoryAmount: Double = 0
 
     init(currentBudget: Budget, budgetManager: any BudgetManagerProtocol, onUpdateBudget: @escaping (Budget) -> Void) {
         self.currentBudget = currentBudget
@@ -39,7 +36,8 @@ struct CategorySettingsView: View {
             if !currentBudget.categories.contains(where: {
                 $0.id == subCategory.id &&
                 $0.name == subCategory.name &&
-                $0.categoryType == subCategory.categoryType
+                $0.categoryType == subCategory.categoryType &&
+                $0.categoryGroup == subCategory.categoryGroup
             }) {
                 return true
             }
@@ -66,18 +64,13 @@ struct CategorySettingsView: View {
                     updateTotalBudgetAmount()
                 },
                 onAddCategory: {
-                    isEditMode = false
-                    newCategoryName = ""
-                    selectedGroup = nil
-                    editingCategoryType = .expense
+                    editingSubCategory = nil
+                    editingCategoryAmount = 0
                     showingAddCategory = true
                 },
                 onEditCategory: { subCategory in
-                    isEditMode = true
                     editingSubCategory = subCategory
-                    newCategoryName = subCategory.name
-                    selectedGroup = subCategory.categoryGroup
-                    editingCategoryType = subCategory.categoryType
+                    editingCategoryAmount = categoryAmounts[subCategory.id.uuidString] ?? 0
                     showingAddCategory = true
                 },
                 onDeleteCategory: { subCategory in
@@ -107,7 +100,7 @@ struct CategorySettingsView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Image(systemName: "checkmark")
                         .font(.dsHeadline)
-                        .foregroundColor(hasChanges ? theme.colors.textPrimary : theme.colors.textSecondary)
+                        .foregroundColor(hasChanges ? theme.colors.primary : theme.colors.textSecondary)
                         .onTapGesture {
                             if hasChanges {
                                 saveCategoryChanges()
@@ -118,16 +111,14 @@ struct CategorySettingsView: View {
         }
         .sheet(isPresented: $showingAddCategory) {
             DSAddCategorySheet(
-                categoryName: $newCategoryName,
-                selectedGroup: $selectedGroup,
-                categoryType: editingCategoryType,
-                isEditMode: isEditMode,
-                onSave: { group, categoryType in
-                    if isEditMode, let subCategory = editingSubCategory {
-                        updateSubCategory(subCategory, name: newCategoryName, categoryType: categoryType)
-                    } else {
-                        addNewSubCategory(group: group, categoryType: categoryType)
-                    }
+                subCategory: editingSubCategory,
+                allocatedAmount: editingCategoryAmount,
+                currency: currentBudget.currency,
+                budgetManager: budgetManager,
+                onSuccess: {
+                    // Reload budget data from Supabase after successful save
+                    reloadBudgetData()
+                    clearAddCategoryState()
                 },
                 onCancel: {
                     clearAddCategoryState()
@@ -155,23 +146,6 @@ struct CategorySettingsView: View {
     
     // MARK: - Helper Methods
 
-    private func addNewSubCategory(group: CategoryGroup, categoryType: CategoryType) {
-        guard !newCategoryName.isEmpty,
-              !subCategories.contains(where: { $0.name.lowercased() == newCategoryName.lowercased() }) else {
-            return
-        }
-
-        let newSubCategory = SubCategory(
-            name: newCategoryName,
-            categoryGroup: group,
-            categoryType: categoryType
-        )
-
-        subCategories.append(newSubCategory)
-        categoryAmounts[newSubCategory.id.uuidString] = 0.0
-        clearAddCategoryState()
-    }
-
     private func removeSubCategory(_ subCategory: SubCategory) {
         // Delete all transactions associated with this sub-category
         _ = budgetManager.deleteAllTransactions(for: subCategory)
@@ -180,17 +154,6 @@ struct CategorySettingsView: View {
         subCategories.removeAll { $0.id == subCategory.id }
         categoryAmounts.removeValue(forKey: subCategory.id.uuidString)
         updateTotalBudgetAmount()
-    }
-
-    private func updateSubCategory(_ subCategory: SubCategory, name: String, categoryType: CategoryType? = nil) {
-        if let index = subCategories.firstIndex(where: { $0.id == subCategory.id }) {
-            subCategories[index] = SubCategory(
-                id: subCategory.id,
-                name: name,
-                categoryGroup: subCategory.categoryGroup,
-                categoryType: categoryType ?? subCategory.categoryType
-            )
-        }
     }
 
     private func toggleCategoryType(for subCategory: SubCategory) {
@@ -206,10 +169,8 @@ struct CategorySettingsView: View {
     }
 
     private func clearAddCategoryState() {
-        newCategoryName = ""
-        selectedGroup = nil
         editingSubCategory = nil
-        isEditMode = false
+        editingCategoryAmount = 0
         showingAddCategory = false
     }
 
@@ -217,7 +178,39 @@ struct CategorySettingsView: View {
         totalBudgetAmount = categoryAmounts.values.reduce(0, +)
     }
 
+    private func reloadBudgetData() {
+        print("🔄 Reloading budget data from budgetManager...")
+        let freshBudget = budgetManager.budget
+        subCategories = freshBudget.categories
+        categoryAmounts = freshBudget.categoryAmounts
+        updateTotalBudgetAmount()
+        print("   ✅ UI refreshed with latest data")
+    }
+
     private func saveCategoryChanges() {
+        print("💾 CategorySettingsView: Saving category changes...")
+        print("   Budget ID: \(currentBudget.id)")
+        print("   Number of categories: \(subCategories.count)")
+
+        // Log what changed
+        if subCategories.count != currentBudget.categories.count {
+            print("   ⚠️ Category count changed: \(currentBudget.categories.count) → \(subCategories.count)")
+        }
+
+        for subCategory in subCategories {
+            if let original = currentBudget.categories.first(where: { $0.id == subCategory.id }) {
+                if original.name != subCategory.name {
+                    print("   📝 Category name changed: '\(original.name)' → '\(subCategory.name)'")
+                }
+                if original.categoryGroup != subCategory.categoryGroup {
+                    print("   🔄 Category group changed for '\(subCategory.name)': \(original.categoryGroup.displayName) → \(subCategory.categoryGroup.displayName)")
+                }
+                if original.categoryType != subCategory.categoryType {
+                    print("   🔀 Category type changed for '\(subCategory.name)': \(original.categoryType.displayName) → \(subCategory.categoryType.displayName)")
+                }
+            }
+        }
+
         let updatedBudget = Budget(
             id: currentBudget.id,
             period: currentBudget.period,
@@ -226,7 +219,9 @@ struct CategorySettingsView: View {
             categoryAmounts: categoryAmounts
         )
 
+        print("   ➡️ Calling onUpdateBudget...")
         onUpdateBudget(updatedBudget)
+        print("   ✅ Category changes saved, dismissing sheet")
         dismiss()
     }
 }

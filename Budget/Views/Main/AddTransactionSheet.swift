@@ -45,7 +45,7 @@ struct AddTransactionSheet: View {
 
         // Initialize state from existing transaction if in edit mode
         if let transaction = existingTransaction {
-            _name = State(initialValue: transaction.notes)
+            _name = State(initialValue: transaction.name)
             _amount = State(initialValue: String(format: "%.2f", transaction.amount))
             _notes = State(initialValue: transaction.notes)
             _selectedDate = State(initialValue: transaction.date)
@@ -240,9 +240,6 @@ struct AddTransactionSheet: View {
             return
         }
 
-        // Use notes field for transaction notes
-        let transactionNotes = notes
-
         // Determine recurrence type
         let recurrenceType: RecurrenceType = isRecurring ? (selectedRecurrenceIndex == 0 ? .weekly : .monthly) : .none
 
@@ -252,7 +249,8 @@ struct AddTransactionSheet: View {
             transaction = Transaction(
                 id: existingTx.id,
                 amount: amountValue,
-                notes: transactionNotes,
+                name: name,
+                notes: notes,
                 date: selectedDate,
                 categoryId: subCategory.id,
                 isRecurring: isRecurring,
@@ -262,7 +260,8 @@ struct AddTransactionSheet: View {
             // Add mode: create new transaction
             transaction = Transaction(
                 amount: amountValue,
-                notes: transactionNotes,
+                name: name,
+                notes: notes,
                 date: selectedDate,
                 categoryId: subCategory.id,
                 isRecurring: isRecurring,
@@ -326,6 +325,7 @@ struct AddTransactionSheet: View {
             if let date = nextDate, date <= budgetPeriod.endDate {
                 let recurringTransaction = Transaction(
                     amount: baseTransaction.amount,
+                    name: baseTransaction.name,
                     notes: baseTransaction.notes,
                     date: date,
                     categoryId: subCategory.id,

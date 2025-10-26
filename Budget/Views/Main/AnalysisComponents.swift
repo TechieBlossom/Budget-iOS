@@ -665,13 +665,27 @@ struct OverviewHeroCard: View {
 // MARK: - Category Group Bar Chart
 struct CategoryGroupBarChart: View {
     let budgetManager: any BudgetManagerProtocol
+    let excludeSavings: Bool
     @Environment(\.appTheme) private var theme
     @State private var showText = false
 
     private var sortedGroups: [(CategoryGroup, Double)] {
         CategoryGroup.allCases.compactMap { group in
             let spent = budgetManager.spentAmount(for: group)
-            guard spent > 0 else { return nil }
+
+            // If excluding savings (expenses mode), include groups that have at least one savings category
+            if excludeSavings {
+                let hasSavingsCategories = budgetManager.budget.categories
+                    .filter { $0.categoryGroup == group }
+                    .contains { $0.categoryType == .savings }
+
+                // Show group if it has spending OR if it has savings categories
+                guard spent > 0 || hasSavingsCategories else { return nil }
+            } else {
+                // In normal mode, only show groups with spending
+                guard spent > 0 else { return nil }
+            }
+
             return (group, spent)
         }
         .sorted { $0.1 > $1.1 } // Sort by spent amount descending

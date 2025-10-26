@@ -176,7 +176,7 @@ struct TransactionRow: View {
         }) {
             HStack(spacing: DSSpacing.md) {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    DSText(transaction.notes, font: .dsBody, color: theme.colors.textPrimary)
+                    DSText(transaction.name.isEmpty ? transaction.notes : transaction.name, font: .dsBody, color: theme.colors.textPrimary)
                     DSText(transaction.formattedDate, font: .dsCaption, color: theme.colors.textSecondary)
                 }
 

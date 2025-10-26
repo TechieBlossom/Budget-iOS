@@ -55,7 +55,11 @@ protocol BudgetManagerProtocol {
     var daysUntilBudgetEnd: Int { get }
     func checkBudgetStatus() -> BudgetStatus
     func getNextBudgetPeriod() -> BudgetPeriod
-    func createNextPeriodBudget() -> Bool
+    func createNextPeriodBudget() async -> Bool
+
+    // Budget updates and sync
+    func updateBudget(_ budget: Budget) -> Bool
+    func syncActiveBudget() async
 }
 
 // MARK: - Default Parameter Extensions

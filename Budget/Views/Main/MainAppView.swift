@@ -23,7 +23,6 @@ struct MainAppView: View {
     @State private var showingAddTransaction = false
     @State private var transactionToEdit: Transaction?
     @State private var showingBudgetEdit = false
-    @State private var showingImportExport = false
     @State private var showingEndBudgetConfirmation = false
     @State private var notificationManager = NotificationManager()
     @StateObject private var analysisViewModel: AnalysisViewModel
@@ -33,6 +32,9 @@ struct MainAppView: View {
     @State private var showingCategorySettings = false
     @State private var selectedCategory: SubCategory?
     @State private var showingAllTransactions = false
+    @State private var showingHistoricalBudgets = false
+    @State private var showingSignOutConfirmation = false
+    @Environment(AuthManager.self) private var authManager
 
     init(budgetManager: BudgetManager, showingBudgetSettings: Binding<Bool>) {
         self.budgetManager = budgetManager
@@ -164,19 +166,21 @@ struct MainAppView: View {
             .fullScreenCover(isPresented: $showingBudgetEdit) {
                 BudgetEditView(budgetManager: budgetManager, onBudgetUpdated: {})
             }
-            .navigationDestination(isPresented: $showingImportExport) {
-                ImportExportView(budgetManager: budgetManager)
+            .navigationDestination(isPresented: $showingHistoricalBudgets) {
+                HistoricalBudgetsView()
             }
             .fullScreenCover(isPresented: $showingEndBudgetConfirmation) {
                 BudgetExpiredView(
                     budgetManager: budgetManager,
                     isManualEnd: true,
                     onContinueWithSameSettings: {
-                        if budgetManager.createNextPeriodBudget() {
-                            showingEndBudgetConfirmation = false
-                            // Schedule notifications for the new budget
-                            if let budget = budgetManager.currentBudget {
-                                NotificationService.shared.scheduleBudgetEndNotifications(for: budget)
+                        Task { @MainActor in
+                            if await budgetManager.createNextPeriodBudget() {
+                                showingEndBudgetConfirmation = false
+                                // Schedule notifications for the new budget
+                                if let budget = budgetManager.currentBudget {
+                                    NotificationService.shared.scheduleBudgetEndNotifications(for: budget)
+                                }
                             }
                         }
                     },
@@ -190,6 +194,16 @@ struct MainAppView: View {
                 )
             }
             .alertBanner()
+            .alert("Sign Out", isPresented: $showingSignOutConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Sign Out", role: .destructive) {
+                    Task {
+                        try? await authManager.signOut()
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to sign out? Your data is synced to the cloud and will be available when you sign in again.")
+            }
             .navigationDestination(isPresented: $showingBudgetSettings) {
                 BudgetSettingsView(budgetManager: budgetManager)
             }
@@ -332,6 +346,11 @@ struct MainAppView: View {
                                 .foregroundColor(theme.colors.textPrimary)
                         }
                     }
+
+                    // Sync status indicator
+                    ToolbarItem(placement: .topBarLeading) {
+                        SyncStatusView(state: budgetManager.syncState)
+                    }
                 }
             }
         }
@@ -376,14 +395,14 @@ struct MainAppView: View {
                         .padding(.horizontal, DSSpacing.md)
 
                         // Single Chart - Group-based spending
-                        CategoryGroupBarChart(budgetManager: budgetManager)
+                        CategoryGroupBarChart(budgetManager: budgetManager, excludeSavings: expensesOnlyMode)
                     }
  
                     // All Transactions Link
                     if !budgetManager.getAllTransactions().isEmpty {
                         VStack(spacing: DSSpacing.md) {
                             DSButtonCard(
-                                "View All Transactions",
+                                "View All \(budgetManager.getAllTransactions().count) Transactions",
                                 subtitle: "\(budgetManager.getAllTransactions().count) transactions"
                             ) {
                                 HapticManager.shared.buttonTap()
@@ -434,6 +453,9 @@ struct MainAppView: View {
                         .fill(Color.clear)
                         .frame(height: 16)
                 }.padding(.top, DSSpacing.lg)
+            }
+            .refreshable {
+                await budgetManager.syncActiveBudget()
             }
         .background(theme.colors.background)
     }
@@ -500,15 +522,40 @@ struct MainAppView: View {
                         .padding(.vertical, DSSpacing.xs)
                         .padding(.horizontal, DSSpacing.md)
 
-                    // Import/Export Section
+                    // Historical Budgets Section (only show if authenticated)
                     SettingsSection(
-                        title: "Import/Export",
+                        title: "Historical Budgets",
                         currentValue: "",
-                        description: "Export or import budget data",
+                        description: "View past budget periods",
                         useSmallText: false,
                         isDisabled: false
                     ) {
-                        showingImportExport = true
+                        showingHistoricalBudgets = true
+                    }
+                    .padding(.horizontal, DSSpacing.md)
+
+                    // Divider
+                    Divider()
+                        .padding(.vertical, DSSpacing.xs)
+                        .padding(.horizontal, DSSpacing.md)
+
+                    // Sync Section
+                    SyncSection(budgetManager: budgetManager)
+                        .padding(.horizontal, DSSpacing.md)
+
+                    // Divider
+                    Divider()
+                        .padding(.vertical, DSSpacing.xs)
+                        .padding(.horizontal, DSSpacing.md)
+
+                    // Divider
+                    Divider()
+                        .padding(.vertical, DSSpacing.xs)
+                        .padding(.horizontal, DSSpacing.md)
+
+                    // Sign Out Section
+                    SignOutSection {
+                        showingSignOutConfirmation = true
                     }
                     .padding(.horizontal, DSSpacing.md)
 

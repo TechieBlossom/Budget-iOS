@@ -8,19 +8,47 @@ class BudgetManager: BudgetManagerProtocol {
     var currentBudget: Budget?
     var transactions: [Transaction] = []
     private var lastDeletedTransaction: Transaction?
-    
-    init(modelContext: ModelContext) {
-        self.databaseService = DatabaseService(modelContext: modelContext)
+
+    // Sync properties
+    var syncState: SyncState = .idle
+    private var syncManager: SupabaseSyncManager?
+    private let networkMonitor = NetworkMonitor()
+    private var authManager: AuthManager?
+
+    /// Whether an active budget exists
+    var hasActiveBudget: Bool {
+        currentBudget != nil
+    }
+
+    init(modelContext: ModelContext, authManager: AuthManager? = nil, syncManager: SupabaseSyncManager? = nil) {
+        self.authManager = authManager
+        self.databaseService = DatabaseService(modelContext: modelContext, authManager: authManager)
+        self.syncManager = syncManager ?? SupabaseSyncManager(modelContext: modelContext)
+
+        // Load active budget from local DB first (instant)
         loadCurrentBudget()
+
+        // Sync state from sync manager
+        updateSyncState()
+
+        // Then sync in background if authenticated
+        if authManager?.isAuthenticated == true {
+            Task {
+                await syncActiveBudget()
+            }
+        }
     }
     
     // MARK: - Budget Operations
-    
+
     func createBudget(_ budget: Budget) -> Bool {
         let success = databaseService.createBudget(budget)
         if success {
             currentBudget = budget
             loadTransactions()
+
+            // Trigger sync if online
+            triggerSync()
         }
         return success
     }
@@ -40,9 +68,17 @@ class BudgetManager: BudgetManagerProtocol {
     }
     
     func updateBudget(_ budget: Budget) -> Bool {
+        print("🔄 BudgetManager: Updating budget \(budget.id)")
         let success = databaseService.updateBudget(budget)
         if success {
+            print("   ✅ Database update successful")
             currentBudget = budget
+
+            // Trigger sync if online
+            print("   🌐 Triggering sync...")
+            triggerSync()
+        } else {
+            print("   ❌ Database update failed")
         }
         return success
     }
@@ -52,6 +88,9 @@ class BudgetManager: BudgetManagerProtocol {
         if success && currentBudget?.id == budgetId {
             currentBudget = nil
             transactions = []
+
+            // Trigger sync if online
+            triggerSync()
         }
         return success
     }
@@ -72,24 +111,40 @@ class BudgetManager: BudgetManagerProtocol {
     
     func addTransaction(_ transaction: Transaction, to budgetId: UUID? = nil) -> Bool {
         let targetBudgetId: UUID
-        
+        let targetBudget: Budget?
+
         if let budgetId = budgetId {
             targetBudgetId = budgetId
-        } else if let currentBudgetId = currentBudget?.id {
-            targetBudgetId = currentBudgetId
+            targetBudget = databaseService.fetchBudget(by: budgetId)
+        } else if let currentBudget = currentBudget {
+            targetBudgetId = currentBudget.id
+            targetBudget = currentBudget
         } else {
             // Try to find appropriate budget for transaction date
             guard let appropriateBudget = databaseService.findBudget(for: transaction.date) else {
                 return false
             }
             targetBudgetId = appropriateBudget.id
+            targetBudget = appropriateBudget
         }
-        
+
+        // Validate transaction date is within budget period
+        if let budget = targetBudget {
+            guard transaction.date >= budget.period.startDate &&
+                  transaction.date <= budget.period.endDate else {
+                print("❌ Transaction date must be within budget period (\(budget.period.startDate) - \(budget.period.endDate))")
+                return false
+            }
+        }
+
         let success = databaseService.createTransaction(transaction, budgetId: targetBudgetId)
         if success {
             if targetBudgetId == currentBudget?.id {
                 transactions.append(transaction)
             }
+
+            // Trigger sync if online
+            triggerSync()
         }
         return success
     }
@@ -99,11 +154,23 @@ class BudgetManager: BudgetManagerProtocol {
     }
     
     func updateTransaction(_ transaction: Transaction) -> Bool {
+        // Validate transaction date is within budget period if current budget
+        if let currentBudget = currentBudget {
+            guard transaction.date >= currentBudget.period.startDate &&
+                  transaction.date <= currentBudget.period.endDate else {
+                print("❌ Transaction date must be within budget period (\(currentBudget.period.startDate) - \(currentBudget.period.endDate))")
+                return false
+            }
+        }
+
         let success = databaseService.updateTransaction(transaction)
         if success {
             if let index = transactions.firstIndex(where: { $0.id == transaction.id }) {
                 transactions[index] = transaction
             }
+
+            // Trigger sync if online
+            triggerSync()
         }
         return success
     }
@@ -113,6 +180,9 @@ class BudgetManager: BudgetManagerProtocol {
         if success {
             lastDeletedTransaction = transaction
             transactions.removeAll { $0.id == transaction.id }
+
+            // Trigger sync if online
+            triggerSync()
         }
         return success
     }
@@ -132,6 +202,11 @@ class BudgetManager: BudgetManagerProtocol {
             }
         }
 
+        // Trigger sync if online and at least one deletion succeeded
+        if allSuccess {
+            triggerSync()
+        }
+
         return allSuccess
     }
 
@@ -145,6 +220,9 @@ class BudgetManager: BudgetManagerProtocol {
         if success {
             transactions.append(deletedTransaction)
             lastDeletedTransaction = nil
+
+            // Trigger sync if online
+            triggerSync()
         }
         return success
     }
@@ -246,13 +324,20 @@ class BudgetManager: BudgetManagerProtocol {
     func recentTransactions(for subCategory: SubCategory, limit: Int = 5) -> [Transaction] {
         transactions
             .filter { $0.categoryId == subCategory.id }
-            .sorted { $0.date > $1.date }
+            .sorted { $0.amount > $1.amount }
             .prefix(limit)
             .map { $0 }
     }
 
     func subCategories(for group: CategoryGroup) -> [SubCategory] {
-        budget.categories.filter { $0.categoryGroup == group }
+        let filteredCategories = budget.categories.filter { $0.categoryGroup == group }
+
+        // Sort by spending percentage (highest first)
+        return filteredCategories.sorted { cat1, cat2 in
+            let percentage1 = spentPercentage(for: cat1)
+            let percentage2 = spentPercentage(for: cat2)
+            return percentage1 > percentage2
+        }
     }
 
     // MARK: - Category Group Level Calculations
@@ -423,8 +508,18 @@ class BudgetManager: BudgetManagerProtocol {
         }
     }
 
-    func createNextPeriodBudget() -> Bool {
+    func createNextPeriodBudget() async -> Bool {
         guard let currentBudget = currentBudget else { return false }
+
+        // Deactivate current budget if authenticated
+        if authManager?.isAuthenticated == true {
+            do {
+                try await syncManager?.deactivateCurrentBudget()
+            } catch {
+                print("Failed to deactivate current budget: \(error)")
+                return false
+            }
+        }
 
         let nextPeriod = getNextBudgetPeriod()
         let nextBudget = Budget(
@@ -434,7 +529,89 @@ class BudgetManager: BudgetManagerProtocol {
             categoryAmounts: currentBudget.categoryAmounts
         )
 
-        return createBudget(nextBudget)
+        let success = createBudget(nextBudget)
+
+        // Sync new budget to server
+        if success && authManager?.isAuthenticated == true {
+            await syncActiveBudget()
+        }
+
+        return success
+    }
+
+    // MARK: - Sync Methods
+
+    /// Sync active budget with Supabase
+    func syncActiveBudget() async {
+        guard let syncManager = syncManager else {
+            print("   ⚠️ Sync skipped: No sync manager available")
+            return
+        }
+
+        print("🔄 BudgetManager: Starting sync with Supabase...")
+        do {
+            try await syncManager.syncActiveBudget()
+            print("   ✅ Sync completed successfully")
+            updateSyncState()
+            // Reload local data after sync
+            loadCurrentBudget()
+        } catch {
+            print("   ❌ Sync failed: \(error)")
+            syncState = .error(error.localizedDescription)
+        }
+    }
+
+    /// Update sync state from sync manager
+    private func updateSyncState() {
+        guard let syncManager = syncManager else { return }
+        syncState = syncManager.syncState
+    }
+
+    /// Trigger sync after data changes
+    private func triggerSync() {
+        guard networkMonitor.isConnected else {
+            print("   ⚠️ Sync skipped: No network connection")
+            return
+        }
+        guard authManager?.isAuthenticated == true else {
+            print("   ⚠️ Sync skipped: User not authenticated")
+            return
+        }
+
+        print("   ✅ Network connected and authenticated, starting sync task...")
+        Task {
+            await syncActiveBudget()
+        }
+    }
+
+    /// Force a full sync
+    func forceSync() async {
+        guard let syncManager = syncManager else { return }
+
+        do {
+            try await syncManager.forceSync()
+            updateSyncState()
+            loadCurrentBudget()
+        } catch {
+            print("Force sync failed: \(error)")
+            syncState = .error(error.localizedDescription)
+        }
+    }
+
+    /// Reset sync flags and force sync (for recovery from failed syncs)
+    func resetAndSync() async {
+        guard let syncManager = syncManager else { return }
+
+        do {
+            print("🔄 Forcing full re-sync from Supabase...")
+            try await syncManager.forceSync()
+            updateSyncState()
+            loadCurrentBudget()
+            print("✅ Force sync completed, budget reloaded")
+        } catch {
+            print("Reset and sync failed: \(error)")
+            syncState = .error(error.localizedDescription)
+        }
     }
 
 }

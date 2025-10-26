@@ -4,11 +4,12 @@ struct BudgetSettingsView: View {
     let budgetManager: BudgetManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
+    @Environment(AuthManager.self) private var authManager
     @State private var showingCurrencySettings = false
     @State private var showingPeriodSettings = false
     @State private var showingCategorySettings = false
-    @State private var showingImportExport = false
     @State private var showingEndBudgetConfirmation = false
+    @State private var showingSignOutConfirmation = false
     @State private var notificationManager = NotificationManager()
 
     private var isCurrentBudget: Bool {
@@ -72,16 +73,21 @@ struct BudgetSettingsView: View {
                         ) {
                             showingCategorySettings = true
                         }
-                        
-                        // Import/Export Section (always enabled)
-                        SettingsSection(
-                            title: "Import/Export",
-                            currentValue: "",
-                            description: "Export or import budget data",
-                            useSmallText: false,
-                            isDisabled: false
-                        ) {
-                            showingImportExport = true
+
+                        // Divider
+                        Divider()
+                            .padding(.vertical, DSSpacing.xs)
+
+                        // Sync Section
+                        SyncSection(budgetManager: budgetManager)
+
+                        // Divider
+                        Divider()
+                            .padding(.vertical, DSSpacing.xs)
+
+                        // Account Section - Sign Out
+                        SignOutSection {
+                            showingSignOutConfirmation = true
                         }
 
                         // Divider
@@ -161,20 +167,19 @@ struct BudgetSettingsView: View {
                     }
                 )
             }
-            .navigationDestination(isPresented: $showingImportExport) {
-                ImportExportView(budgetManager: budgetManager)
-            }
             .fullScreenCover(isPresented: $showingEndBudgetConfirmation) {
                 BudgetExpiredView(
                     budgetManager: budgetManager,
                     isManualEnd: true,
                     onContinueWithSameSettings: {
-                        if budgetManager.createNextPeriodBudget() {
-                            showingEndBudgetConfirmation = false
-                            dismiss() // Go back to main app
-                            // Schedule notifications for the new budget
-                            if let budget = budgetManager.currentBudget {
-                                NotificationService.shared.scheduleBudgetEndNotifications(for: budget)
+                        Task { @MainActor in
+                            if await budgetManager.createNextPeriodBudget() {
+                                showingEndBudgetConfirmation = false
+                                dismiss() // Go back to main app
+                                // Schedule notifications for the new budget
+                                if let budget = budgetManager.currentBudget {
+                                    NotificationService.shared.scheduleBudgetEndNotifications(for: budget)
+                                }
                             }
                         }
                     },
@@ -186,6 +191,17 @@ struct BudgetSettingsView: View {
                         showingEndBudgetConfirmation = false
                     }
                 )
+            }
+            .alert("Sign Out", isPresented: $showingSignOutConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Sign Out", role: .destructive) {
+                    Task {
+                        try? await authManager.signOut()
+                        dismiss()
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to sign out? Your data is synced to the cloud and will be available when you sign in again.")
             }
     }
 }
@@ -254,6 +270,98 @@ struct EndBudgetSection: View {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.dsHeadline)
                         .foregroundColor(Color.red)
+                }
+                .padding(.horizontal, DSSpacing.sm)
+                .padding(.vertical, DSSpacing.sm)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct SyncSection: View {
+    let budgetManager: BudgetManager
+    @Environment(\.appTheme) private var theme
+    @State private var isSyncing = false
+
+    private var lastSyncText: String {
+        switch budgetManager.syncState {
+        case .success(let date):
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .full
+            return "Last synced \(formatter.localizedString(for: date, relativeTo: Date()))"
+        case .error:
+            return "Last sync failed"
+        case .offline:
+            return "Offline"
+        case .syncing:
+            return "Syncing..."
+        case .idle:
+            return "Not yet synced"
+        }
+    }
+
+    var body: some View {
+        DSCard(padding: 8) {
+            VStack(spacing: DSSpacing.md) {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        DSText("Sync Status", font: .dsHeadline, color: theme.colors.textPrimary)
+                        DSText(lastSyncText, font: .dsCaption, color: theme.colors.textSecondary)
+                    }
+
+                    Spacer()
+
+                    // Sync status indicator
+                    SyncStatusView(state: budgetManager.syncState)
+                }
+
+                // Sync now button
+                DSButton("Sync Now", style: .outline) {
+                    Task {
+                        isSyncing = true
+                        await budgetManager.syncActiveBudget()
+                        isSyncing = false
+                    }
+                }
+                .disabled(isSyncing || budgetManager.syncState == .syncing)
+
+                #if DEBUG
+                // Debug: Reset and sync button
+                DSButton("Reset & Re-sync (Debug)", style: .outline) {
+                    Task {
+                        isSyncing = true
+                        await budgetManager.resetAndSync()
+                        isSyncing = false
+                    }
+                }
+                .disabled(isSyncing || budgetManager.syncState == .syncing)
+                #endif
+            }
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.sm)
+        }
+    }
+}
+
+struct SignOutSection: View {
+    let action: () -> Void
+    @Environment(\.appTheme) private var theme
+
+    var body: some View {
+        Button(action: action) {
+            DSCard(padding: 8) {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        DSText("Sign Out", font: .dsHeadline, color: theme.colors.textPrimary)
+                        DSText("Sign out of your account", font: .dsCaption, color: theme.colors.textSecondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.dsHeadline)
+                        .foregroundColor(theme.colors.textSecondary)
                 }
                 .padding(.horizontal, DSSpacing.sm)
                 .padding(.vertical, DSSpacing.sm)

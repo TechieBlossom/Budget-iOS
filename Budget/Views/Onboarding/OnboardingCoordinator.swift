@@ -3,13 +3,11 @@ import SwiftUI
 struct OnboardingCoordinator: View {
     @State private var onboardingState = OnboardingState()
     let onComplete: (Budget) -> Void
-    let onImport: ((Budget, [Transaction]) -> Void)?
 
     @Environment(\.appTheme) private var theme
 
-    init(onComplete: @escaping (Budget) -> Void = { _ in }, onImport: ((Budget, [Transaction]) -> Void)? = nil) {
+    init(onComplete: @escaping (Budget) -> Void = { _ in }) {
         self.onComplete = onComplete
-        self.onImport = onImport
     }
     
     var body: some View {
@@ -18,9 +16,7 @@ struct OnboardingCoordinator: View {
             Group {
                 switch onboardingState.currentStep {
                 case .welcome:
-                    WelcomeView(onboardingState: onboardingState, onImportBudget: { budget, transactions in
-                        onImport?(budget, transactions)
-                    })
+                    WelcomeView(onboardingState: onboardingState)
                 case .currency:
                     CurrencySelectionView(
                         onboardingState: onboardingState,

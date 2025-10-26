@@ -53,14 +53,15 @@ struct DSCategoryRowWithAmount: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Color Border (from category group)
-            Rectangle()
-                .fill(subCategory.categoryGroup.color)
-                .frame(width: 8)
-                .cornerRadius(8, corners: [.topLeft, .bottomLeft])
+        Button(action: onEdit) {
+            HStack(spacing: 0) {
+                // Color Border (from category group)
+                Rectangle()
+                    .fill(subCategory.categoryGroup.color)
+                    .frame(width: 8)
+                    .cornerRadius(8, corners: [.topLeft, .bottomLeft])
 
-            HStack(spacing: DSSpacing.md) {
+                HStack(spacing: DSSpacing.md) {
                 // Category Name and Type
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     DSText(subCategory.name, font: .dsHeadline, color: theme.colors.textPrimary)
@@ -106,27 +107,21 @@ struct DSCategoryRowWithAmount: View {
                         onAmountChange(numericValue)
                     }
 
-                // Edit Button
-                Button(action: onEdit) {
-                    Image(systemName: "pencil")
-                        .font(.body)
-                        .foregroundColor(theme.colors.textSecondary)
+                    // Delete Button
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.body)
+                            .foregroundColor(theme.colors.textSecondary)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
-                .buttonStyle(PlainButtonStyle())
-
-                // Delete Button
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                        .font(.body)
-                        .foregroundColor(theme.colors.textSecondary)
-                }
-                .buttonStyle(PlainButtonStyle())
+                .padding(.horizontal, DSSpacing.md)
+                .padding(.vertical, DSSpacing.md)
             }
-            .padding(.horizontal, DSSpacing.md)
-            .padding(.vertical, DSSpacing.md)
+            .background(theme.colors.surface)
+            .cornerRadius(8)
         }
-        .background(theme.colors.surface)
-        .cornerRadius(8)
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

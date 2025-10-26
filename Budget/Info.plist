@@ -20,5 +20,39 @@
 		<string>InriaSans-BoldItalic.ttf</string>
 		<string>InriaSans-LightItalic.ttf</string>
 	</array>
+
+	<!-- URL Schemes for OAuth callbacks -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- Supabase OAuth callback -->
+				<string>com.techieblossom.Budget</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- Google Sign In reversed client ID (iOS Client) -->
+				<string>com.googleusercontent.apps.880808744457-ggrurqeqih9oh6msnk19jri55vj4gpl0</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Google Sign In Client ID (iOS Client) -->
+	<key>GIDClientID</key>
+	<string>880808744457-ggrurqeqih9oh6msnk19jri55vj4gpl0.apps.googleusercontent.com</string>
+
+	<!-- Query schemes for Google Sign In -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>googlechrome</string>
+		<string>googleauth</string>
+	</array>
 </dict>
 </plist>

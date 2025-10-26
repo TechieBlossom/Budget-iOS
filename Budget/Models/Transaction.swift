@@ -13,15 +13,17 @@ enum RecurrenceType: String, Codable, CaseIterable {
 struct Transaction: Identifiable, Hashable {
     let id: UUID
     let amount: Double
-    let notes: String
+    let name: String  // Expense name (e.g., "Coffee", "Groceries")
+    let notes: String  // Optional notes/description
     let date: Date
     let categoryId: UUID
     let isRecurring: Bool
     let recurrenceType: RecurrenceType
 
-    init(amount: Double, notes: String, date: Date = Date(), categoryId: UUID, isRecurring: Bool = false, recurrenceType: RecurrenceType = .none) {
+    init(amount: Double, name: String = "", notes: String = "", date: Date = Date(), categoryId: UUID, isRecurring: Bool = false, recurrenceType: RecurrenceType = .none) {
         self.id = UUID()
         self.amount = amount
+        self.name = name
         self.notes = notes
         self.date = date
         self.categoryId = categoryId
@@ -29,9 +31,10 @@ struct Transaction: Identifiable, Hashable {
         self.recurrenceType = recurrenceType
     }
 
-    init(id: UUID, amount: Double, notes: String, date: Date, categoryId: UUID, isRecurring: Bool = false, recurrenceType: RecurrenceType = .none) {
+    init(id: UUID, amount: Double, name: String = "", notes: String = "", date: Date, categoryId: UUID, isRecurring: Bool = false, recurrenceType: RecurrenceType = .none) {
         self.id = id
         self.amount = amount
+        self.name = name
         self.notes = notes
         self.date = date
         self.categoryId = categoryId

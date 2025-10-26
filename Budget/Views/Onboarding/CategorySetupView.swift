@@ -5,11 +5,8 @@ struct CategorySetupView: View {
     @Bindable var onboardingState: OnboardingState
     let onBack: () -> Void
     @State private var showingAddCategory = false
-    @State private var newCategoryName = ""
-    @State private var selectedGroup: CategoryGroup?
     @State private var editingSubCategory: SubCategory?
-    @State private var isEditMode = false
-    @State private var editingCategoryType: CategoryType = .expense
+    @State private var editingCategoryAmount: Double = 0
 
     @Environment(\.appTheme) private var theme
 
@@ -27,18 +24,13 @@ struct CategorySetupView: View {
                 onboardingState.updateCategoryAmount(categoryId: categoryId, amount: newAmount)
             },
             onAddCategory: {
-                isEditMode = false
-                newCategoryName = ""
-                selectedGroup = nil
-                editingCategoryType = .expense
+                editingSubCategory = nil
+                editingCategoryAmount = 0
                 showingAddCategory = true
             },
             onEditCategory: { subCategory in
-                isEditMode = true
                 editingSubCategory = subCategory
-                newCategoryName = subCategory.name
-                selectedGroup = subCategory.categoryGroup
-                editingCategoryType = subCategory.categoryType
+                editingCategoryAmount = onboardingState.categoryAmounts[subCategory.id.uuidString] ?? 0
                 showingAddCategory = true
             },
             onDeleteCategory: { subCategory in
@@ -50,35 +42,45 @@ struct CategorySetupView: View {
         )
         .sheet(isPresented: $showingAddCategory) {
             DSAddCategorySheet(
-                categoryName: $newCategoryName,
-                selectedGroup: $selectedGroup,
-                categoryType: editingCategoryType,
-                isEditMode: isEditMode,
-                onSave: { group, categoryType in
-                    if !newCategoryName.isEmpty {
-                        if isEditMode, let subCategory = editingSubCategory {
-                            // Update existing sub-category
-                            onboardingState.updateSubCategory(subCategory, name: newCategoryName, categoryType: categoryType)
-                        } else {
-                            // Add new sub-category
-                            onboardingState.addSubCategory(name: newCategoryName, group: group, categoryType: categoryType)
-                        }
-                        newCategoryName = ""
-                        selectedGroup = nil
-                        editingSubCategory = nil
-                        isEditMode = false
-                        showingAddCategory = false
+                subCategory: editingSubCategory,
+                allocatedAmount: editingCategoryAmount,
+                currency: onboardingState.selectedCurrency ?? Currency(code: "USD", name: "US Dollar", symbol: "$"),
+                budgetManager: nil, // No budgetManager during onboarding
+                onSuccess: {
+                    clearState()
+                },
+                onSuccessWithValues: { updatedCategory, amount in
+                    // Update onboarding state with the new/edited category
+                    if let originalCategory = editingSubCategory {
+                        // Edit mode - update existing category
+                        onboardingState.updateSubCategory(
+                            originalCategory,
+                            name: updatedCategory.name,
+                            group: updatedCategory.categoryGroup,
+                            categoryType: updatedCategory.categoryType
+                        )
+                        onboardingState.updateCategoryAmount(categoryId: originalCategory.id.uuidString, amount: amount)
+                    } else {
+                        // Add mode - add new category
+                        onboardingState.addSubCategory(
+                            name: updatedCategory.name,
+                            group: updatedCategory.categoryGroup,
+                            categoryType: updatedCategory.categoryType,
+                            allocatedAmount: amount
+                        )
                     }
                 },
                 onCancel: {
-                    newCategoryName = ""
-                    selectedGroup = nil
-                    editingSubCategory = nil
-                    isEditMode = false
-                    showingAddCategory = false
+                    clearState()
                 }
             )
         }
+    }
+
+    private func clearState() {
+        editingSubCategory = nil
+        editingCategoryAmount = 0
+        showingAddCategory = false
     }
 }
 

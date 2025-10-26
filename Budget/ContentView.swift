@@ -11,6 +11,7 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var systemColorScheme
+    @State private var authManager = AuthManager()
     @State private var hasCompletedOnboarding = false
     @State private var budgetManager: BudgetManager?
     @State private var showingBudgetExpired = false
@@ -18,21 +19,28 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if hasCompletedOnboarding, let manager = budgetManager {
+            // Check authentication first
+            if !authManager.isAuthenticated {
+                AuthView()
+                    .environment(authManager)
+            } else if hasCompletedOnboarding, let manager = budgetManager {
                 MainAppView(
                     budgetManager: manager,
                     showingBudgetSettings: $showingBudgetSettings
                 )
+                .environment(authManager)
                 .overlay {
                     if showingBudgetExpired {
                         BudgetExpiredView(
                             budgetManager: manager,
                             onContinueWithSameSettings: {
-                                if manager.createNextPeriodBudget() {
-                                    showingBudgetExpired = false
-                                    // Schedule notifications for the new budget
-                                    if let budget = manager.currentBudget {
-                                        NotificationService.shared.scheduleBudgetEndNotifications(for: budget)
+                                Task { @MainActor in
+                                    if await manager.createNextPeriodBudget() {
+                                        showingBudgetExpired = false
+                                        // Schedule notifications for the new budget
+                                        if let budget = manager.currentBudget {
+                                            NotificationService.shared.scheduleBudgetEndNotifications(for: budget)
+                                        }
                                     }
                                 }
                             },
@@ -49,45 +57,13 @@ struct ContentView: View {
                     onComplete: { completedBudget in
                         Task { @MainActor in
                             // Create budget manager with the completed budget
-                            let manager = BudgetManager(modelContext: modelContext)
+                            let manager = BudgetManager(modelContext: modelContext, authManager: authManager)
                             _ = manager.createBudget(completedBudget)
                             budgetManager = manager
                             hasCompletedOnboarding = true
 
                             // Schedule budget end notifications for the new budget
                             NotificationService.shared.scheduleBudgetEndNotifications(for: completedBudget)
-                        }
-                    },
-                    onImport: { importedBudget, importedTransactions in
-                        Task { @MainActor in
-                            // Create budget manager with the imported budget
-                            let manager = BudgetManager(modelContext: modelContext)
-
-                            // Check if a budget with the same ID already exists
-                            let existingBudgets = manager.getAllBudgets()
-                            let budgetExists = existingBudgets.contains(where: { $0.id == importedBudget.id })
-
-                            if budgetExists {
-                                // Delete existing budget and its transactions
-                                _ = manager.deleteBudget(importedBudget.id)
-                            }
-
-                            // Create the imported budget
-                            guard manager.createBudget(importedBudget) else {
-                                print("Failed to create imported budget")
-                                return
-                            }
-
-                            // Add all imported transactions to the budget
-                            for transaction in importedTransactions {
-                                _ = manager.addTransaction(transaction, to: importedBudget.id)
-                            }
-
-                            budgetManager = manager
-                            hasCompletedOnboarding = true
-
-                            // Schedule budget end notifications for the imported budget
-                            NotificationService.shared.scheduleBudgetEndNotifications(for: importedBudget)
                         }
                     }
                 )
@@ -96,16 +72,55 @@ struct ContentView: View {
         .environment(\.appTheme, AppTheme.shared)
         .task {
             // Check if there are existing budgets to determine onboarding state
-            await MainActor.run {
-                let manager = BudgetManager(modelContext: modelContext)
-                if manager.hasExistingBudgets() {
-                    budgetManager = manager
-                    hasCompletedOnboarding = true
+            // Only run this if user is authenticated
+            if authManager.isAuthenticated {
+                await MainActor.run {
+                    let manager = BudgetManager(modelContext: modelContext, authManager: authManager)
+                    if manager.hasExistingBudgets() {
+                        budgetManager = manager
+                        hasCompletedOnboarding = true
 
-                    // Check if current budget is expired
+                        // Check if current budget is expired
+                        checkBudgetStatus(manager: manager)
+                    }
+                    // If no existing budgets, keep hasCompletedOnboarding = false to show onboarding
+                }
+            }
+        }
+        .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
+            // When user signs in, initialize budget manager and let sync state handle UI updates
+            if isAuthenticated {
+                Task { @MainActor in
+                    // Create manager - this will start sync in background
+                    let manager = BudgetManager(modelContext: modelContext, authManager: authManager)
+                    budgetManager = manager
+
+                    // Check immediately for local budgets
+                    if manager.hasExistingBudgets() {
+                        hasCompletedOnboarding = true
+                        checkBudgetStatus(manager: manager)
+                    }
+                    // If no local budgets, the onChange(syncState) will handle it after sync
+                }
+            } else {
+                // When user signs out, reset state
+                budgetManager = nil
+                hasCompletedOnboarding = false
+            }
+        }
+        .onChange(of: budgetManager?.syncState) { _, newState in
+            // When sync completes successfully, check for budgets again
+            guard let manager = budgetManager else { return }
+
+            switch newState {
+            case .success:
+                // Sync completed - check if we now have budgets
+                if !hasCompletedOnboarding && manager.hasExistingBudgets() {
+                    hasCompletedOnboarding = true
                     checkBudgetStatus(manager: manager)
                 }
-                // If no existing budgets, keep hasCompletedOnboarding = false to show onboarding
+            default:
+                break
             }
         }
         .onAppear {

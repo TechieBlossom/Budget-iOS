@@ -82,7 +82,7 @@ class MockBudgetManager: BudgetManagerProtocol {
     func recentTransactions(for subCategory: SubCategory, limit: Int = 5) -> [Transaction] {
         transactions
             .filter { $0.categoryId == subCategory.id }
-            .sorted { $0.date > $1.date }
+            .sorted { $0.amount > $1.amount }
             .prefix(limit)
             .map { $0 }
     }
@@ -203,7 +203,7 @@ class MockBudgetManager: BudgetManagerProtocol {
         return BudgetPeriod(startDate: Date())
     }
 
-    func createNextPeriodBudget() -> Bool {
+    func createNextPeriodBudget() async -> Bool {
         return true
     }
 
@@ -240,7 +240,19 @@ class MockBudgetManager: BudgetManagerProtocol {
     func switchToBudget(with id: UUID) -> Bool {
         return id == budget.id
     }
-    
+
+    // MARK: - Budget Updates and Sync (Mock Implementation)
+
+    func updateBudget(_ budget: Budget) -> Bool {
+        currentBudget = budget
+        return true
+    }
+
+    func syncActiveBudget() async {
+        // Mock sync - just pretend we synced
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
+    }
+
     private func generateSampleTransactions() {
         guard let firstCategory = budget.categories.first else { return }
         

@@ -1,129 +1,194 @@
 import SwiftUI
 
 struct DSAddCategorySheet: View {
-    @Binding var categoryName: String
-    @Binding var selectedGroup: CategoryGroup?
-    let onSave: (CategoryGroup, CategoryType) -> Void
+    let subCategory: SubCategory?
+    let allocatedAmount: Double
+    let currency: Currency
+    let budgetManager: (any BudgetManagerProtocol)?
+    let onSuccess: () -> Void
+    let onSuccessWithValues: ((SubCategory, Double) -> Void)?
     let onCancel: () -> Void
-    let isEditMode: Bool
 
+    @State private var editState: CategoryEditState
     @State private var showingGroupSelection = false
-    @State private var categoryType: CategoryType
+    @State private var amountText: String
+    @State private var isSaving = false
+    @State private var errorMessage: String?
     @Environment(\.appTheme) private var theme
+    @Environment(\.dismiss) private var dismiss
 
     init(
-        categoryName: Binding<String>,
-        selectedGroup: Binding<CategoryGroup?>,
-        categoryType: CategoryType? = nil,
-        isEditMode: Bool = false,
-        onSave: @escaping (CategoryGroup, CategoryType) -> Void,
+        subCategory: SubCategory?,
+        allocatedAmount: Double,
+        currency: Currency,
+        budgetManager: (any BudgetManagerProtocol)?,
+        onSuccess: @escaping () -> Void,
+        onSuccessWithValues: ((SubCategory, Double) -> Void)? = nil,
         onCancel: @escaping () -> Void
     ) {
-        self._categoryName = categoryName
-        self._selectedGroup = selectedGroup
-        self.isEditMode = isEditMode
-        self.onSave = onSave
+        self.subCategory = subCategory
+        self.allocatedAmount = allocatedAmount
+        self.currency = currency
+        self.budgetManager = budgetManager
+        self.onSuccess = onSuccess
+        self.onSuccessWithValues = onSuccessWithValues
         self.onCancel = onCancel
-        // Initialize categoryType based on group or provided value
-        if let type = categoryType {
-            self._categoryType = State(initialValue: type)
-        } else if let group = selectedGroup.wrappedValue {
-            self._categoryType = State(initialValue: group == .financialGoals ? .savings : .expense)
+
+        // Initialize edit state
+        if let subCategory = subCategory {
+            // Edit mode
+            self._editState = State(initialValue: CategoryEditState(
+                subCategory: subCategory,
+                allocatedAmount: allocatedAmount
+            ))
         } else {
-            self._categoryType = State(initialValue: .expense)
+            // Add mode
+            self._editState = State(initialValue: CategoryEditState())
         }
+
+        // Initialize amount text
+        self._amountText = State(initialValue: allocatedAmount > 0 ? String(format: "%.2f", allocatedAmount) : "")
+    }
+
+    private var isEditMode: Bool {
+        subCategory != nil
+    }
+
+    private var hasChanges: Bool {
+        guard isEditMode else {
+            // In add mode, just check if form is valid
+            return editState.isValid
+        }
+        return editState.hasChanges && editState.isValid
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: DSSpacing.xl) {
-                    // Category Name Input
-                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                        DSText("Category Name", font: .dsHeadline, color: theme.colors.textPrimary)
-                        DSTextField("e.g., Travel, Hobbies, Pets", text: $categoryName, autocapitalization: .words)
-                            .onChange(of: categoryName) { _, newValue in
-                                if newValue.count > 30 {
-                                    categoryName = String(newValue.prefix(30))
+            ZStack {
+                ScrollView {
+                    VStack(spacing: DSSpacing.xl) {
+                        // Category Name Input
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                            DSText("Category Name", font: .dsHeadline, color: theme.colors.textPrimary)
+                            DSTextField("e.g., Travel, Hobbies, Pets", text: $editState.name, autocapitalization: .words)
+                                .disabled(isSaving)
+                                .onChange(of: editState.name) { _, newValue in
+                                    if newValue.count > 30 {
+                                        editState.name = String(newValue.prefix(30))
+                                    }
                                 }
-                            }
-                    }
-                    .padding(.horizontal, DSSpacing.md)
-                    .padding(.top, DSSpacing.xl)
+                        }
+                        .padding(.horizontal, DSSpacing.md)
+                        .padding(.top, DSSpacing.xl)
 
-                    // Category Group Selection Button
-                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                        DSText("Category Group", font: .dsHeadline, color: theme.colors.textPrimary)
-                            .padding(.horizontal, DSSpacing.md)
+                        // Category Group Selection Button
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                            DSText("Category Group", font: .dsHeadline, color: theme.colors.textPrimary)
+                                .padding(.horizontal, DSSpacing.md)
 
-                        Button(action: {
-                            showingGroupSelection = true
-                        }) {
-                            HStack(spacing: DSSpacing.sm) {
-                                if let group = selectedGroup {
+                            Button(action: {
+                                if !isSaving {
+                                    showingGroupSelection = true
+                                }
+                            }) {
+                                HStack(spacing: DSSpacing.sm) {
                                     Circle()
-                                        .fill(group.color)
+                                        .fill(editState.group.color)
                                         .frame(width: 12, height: 12)
 
                                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                                        DSText(group.displayName, font: .dsHeadline, color: theme.colors.textPrimary)
-                                        DSText(group.description, font: .dsCaption, color: theme.colors.textSecondary)
+                                        DSText(editState.group.displayName, font: .dsHeadline, color: theme.colors.textPrimary)
+                                        DSText(editState.group.description, font: .dsCaption, color: theme.colors.textSecondary)
                                             .lineLimit(1)
                                     }
-                                } else {
-                                    DSText("Select Category Group", font: .dsHeadline, color: theme.colors.textSecondary)
+
+                                    Spacer()
+
+                                    Image(systemName: "chevron.right")
+                                        .font(.dsSubtitle)
+                                        .foregroundColor(theme.colors.textSecondary)
                                 }
+                                .padding(DSSpacing.md)
+                                .background(theme.colors.surface)
+                                .cornerRadius(12)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .padding(.horizontal, DSSpacing.md)
+                            .disabled(isSaving)
+                        }
 
+                        // Category Type Toggle
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                            DSText("Category Type", font: .dsHeadline, color: theme.colors.textPrimary)
+                                .padding(.horizontal, DSSpacing.md)
+
+                            HStack {
+                                DSText("Savings", font: .dsBody, color: theme.colors.textPrimary)
                                 Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .font(.dsSubtitle)
-                                    .foregroundColor(theme.colors.textSecondary)
+                                Toggle("", isOn: Binding(
+                                    get: { editState.type == .savings },
+                                    set: { isSavings in
+                                        editState.type = isSavings ? .savings : .expense
+                                    }
+                                ))
+                                .labelsHidden()
+                                .tint(theme.colors.primary)
+                                .disabled(isSaving)
                             }
                             .padding(DSSpacing.md)
                             .background(theme.colors.surface)
                             .cornerRadius(12)
+                            .padding(.horizontal, DSSpacing.md)
                         }
-                        .buttonStyle(PlainButtonStyle())
-                        .padding(.horizontal, DSSpacing.md)
-                        .onChange(of: selectedGroup) { _, newGroup in
-                            // Update categoryType when group changes
-                            if let group = newGroup {
-                                categoryType = group == .financialGoals ? .savings : .expense
+
+                        // Allocated Amount Input
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                            DSText("Allocated Amount", font: .dsHeadline, color: theme.colors.textPrimary)
+                            HStack(spacing: DSSpacing.xs) {
+                                DSText(currency.symbol, font: .dsBody, color: theme.colors.textSecondary)
+                                DSTextField("0.00", text: $amountText, keyboardType: .decimalPad)
+                                    .disabled(isSaving)
+                                    .onChange(of: amountText) { _, newValue in
+                                        if let amount = Double(newValue) {
+                                            editState.amount = amount
+                                        } else if newValue.isEmpty {
+                                            editState.amount = 0
+                                        }
+                                    }
                             }
                         }
-                    }
-
-                    // Category Type Toggle
-                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                        DSText("Category Type", font: .dsHeadline, color: theme.colors.textPrimary)
-                            .padding(.horizontal, DSSpacing.md)
-
-                        HStack {
-                            DSText("Savings", font: .dsBody, color: theme.colors.textPrimary)
-                            Spacer()
-                            Toggle("", isOn: Binding(
-                                get: { categoryType == .savings },
-                                set: { isSavings in
-                                    categoryType = isSavings ? .savings : .expense
-                                }
-                            ))
-                            .labelsHidden()
-                            .tint(theme.colors.primary)
-                        }
-                        .padding(DSSpacing.md)
-                        .background(theme.colors.surface)
-                        .cornerRadius(12)
                         .padding(.horizontal, DSSpacing.md)
-                    }
 
-                    // Extra padding for keyboard
-                    Spacer()
-                        .frame(height: 100)
+                        // Error Message
+                        if let errorMessage = errorMessage {
+                            DSText(errorMessage, font: .dsCaption, color: .red)
+                                .padding(.horizontal, DSSpacing.md)
+                        }
+
+                        // Extra padding for keyboard
+                        Spacer()
+                            .frame(height: 100)
+                    }
+                }
+                .background(theme.colors.background)
+                .scrollDismissesKeyboard(.interactively)
+
+                // Loading Overlay
+                if isSaving {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+
+                    VStack(spacing: DSSpacing.md) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .tint(theme.colors.primary)
+                        DSText("Saving...", font: .dsBody, color: theme.colors.textPrimary)
+                    }
+                    .padding(DSSpacing.xl)
+                    .background(theme.colors.surface)
+                    .cornerRadius(12)
                 }
             }
-            .background(theme.colors.background)
-            .scrollDismissesKeyboard(.interactively)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -134,43 +199,167 @@ struct DSAddCategorySheet: View {
                         .font(.dsHeadline)
                         .foregroundColor(theme.colors.textPrimary)
                         .onTapGesture {
-                            onCancel()
+                            if !isSaving {
+                                onCancel()
+                                dismiss()
+                            }
                         }
                 }
-                if (!categoryName.isEmpty && selectedGroup != nil) {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Image(systemName: "checkmark")
-                            .font(.dsHeadline)
-                            .foregroundStyle(theme.colors.textPrimary, theme.colors.surface)
-                            .onTapGesture {
-                                if let group = selectedGroup {
-                                    onSave(group, categoryType)
-                                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Image(systemName: "checkmark")
+                        .font(.dsHeadline)
+                        .foregroundColor(hasChanges ? theme.colors.primary : theme.colors.textSecondary)
+                        .onTapGesture {
+                            if hasChanges && !isSaving {
+                                saveCategory()
                             }
-                    }
+                        }
                 }
             }
             .sheet(isPresented: $showingGroupSelection) {
                 DSCategoryGroupSelectionSheet(
-                    selectedGroup: $selectedGroup,
+                    selectedGroup: Binding(
+                        get: { editState.group },
+                        set: { newGroup in
+                            if let newGroup = newGroup {
+                                editState.group = newGroup
+                                // Auto-update type based on group
+                                if newGroup == .financialGoals {
+                                    editState.type = .savings
+                                }
+                            }
+                        }
+                    ),
                     onSelect: { group in
-                        selectedGroup = group
+                        editState.group = group
+                        if group == .financialGoals {
+                            editState.type = .savings
+                        }
                     }
                 )
+            }
+        }
+    }
+
+    private func saveCategory() {
+        // If no budget manager (onboarding flow), call success with values
+        guard let budgetManager = budgetManager else {
+            if let subCategory = subCategory {
+                // Edit mode - return updated category
+                let updatedCategory = SubCategory(
+                    id: subCategory.id,
+                    name: editState.name,
+                    categoryGroup: editState.group,
+                    categoryType: editState.type
+                )
+                onSuccessWithValues?(updatedCategory, editState.amount)
+            } else {
+                // Add mode - return new category
+                let newCategory = SubCategory(
+                    name: editState.name,
+                    categoryGroup: editState.group,
+                    categoryType: editState.type
+                )
+                onSuccessWithValues?(newCategory, editState.amount)
+            }
+            onSuccess()
+            dismiss()
+            return
+        }
+
+        isSaving = true
+        errorMessage = nil
+
+        Task {
+            do {
+                if let subCategory = subCategory {
+                    // Edit existing category
+                    let updatedCategory = SubCategory(
+                        id: subCategory.id,
+                        name: editState.name,
+                        categoryGroup: editState.group,
+                        categoryType: editState.type
+                    )
+
+                    let currentBudget = budgetManager.budget
+                    var mutableCategories = currentBudget.categories
+                    var mutableAmounts = currentBudget.categoryAmounts
+
+                    if let index = mutableCategories.firstIndex(where: { $0.id == subCategory.id }) {
+                        mutableCategories[index] = updatedCategory
+                        mutableAmounts[subCategory.id.uuidString] = editState.amount
+                    }
+
+                    let updatedBudget = Budget(
+                        id: currentBudget.id,
+                        period: currentBudget.period,
+                        currency: currentBudget.currency,
+                        categories: mutableCategories,
+                        categoryAmounts: mutableAmounts
+                    )
+
+                    _ = budgetManager.updateBudget(updatedBudget)
+
+                    // Wait for sync to complete
+                    await budgetManager.syncActiveBudget()
+
+                    await MainActor.run {
+                        isSaving = false
+                        onSuccess()
+                        dismiss()
+                    }
+                } else {
+                    // Add new category
+                    let newCategory = SubCategory(
+                        name: editState.name,
+                        categoryGroup: editState.group,
+                        categoryType: editState.type
+                    )
+
+                    let currentBudget = budgetManager.budget
+                    var mutableCategories = currentBudget.categories
+                    var mutableAmounts = currentBudget.categoryAmounts
+
+                    mutableCategories.append(newCategory)
+                    mutableAmounts[newCategory.id.uuidString] = editState.amount
+
+                    let updatedBudget = Budget(
+                        id: currentBudget.id,
+                        period: currentBudget.period,
+                        currency: currentBudget.currency,
+                        categories: mutableCategories,
+                        categoryAmounts: mutableAmounts
+                    )
+
+                    _ = budgetManager.updateBudget(updatedBudget)
+
+                    // Wait for sync to complete
+                    await budgetManager.syncActiveBudget()
+
+                    await MainActor.run {
+                        isSaving = false
+                        onSuccess()
+                        dismiss()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isSaving = false
+                    errorMessage = "Failed to save: \(error.localizedDescription)"
+                }
             }
         }
     }
 }
 
 #Preview {
-    @Previewable @State var categoryName = ""
-    @Previewable @State var selectedGroup: CategoryGroup? = nil
-
     DSAddCategorySheet(
-        categoryName: $categoryName,
-        selectedGroup: $selectedGroup,
-        onSave: { group, categoryType in
-            print("Saved sub-category: \(categoryName), group: \(group.displayName), type: \(categoryType.displayName)")
+        subCategory: nil,
+        allocatedAmount: 0,
+        currency: Currency(code: "USD", name: "US Dollar", symbol: "$"),
+        budgetManager: MockBudgetManager(budget: Budget.createSample()),
+        onSuccess: {
+            print("Saved successfully")
         },
         onCancel: {
             print("Cancelled")

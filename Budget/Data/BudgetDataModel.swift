@@ -11,16 +11,27 @@ final class BudgetDataModel {
     var currencyCode: String
     var currencyName: String
     var currencySymbol: String
-    
-    // Store complex data as encoded JSON
+
+    // Sync metadata - NEW for Supabase integration
+    var userId: UUID?  // Link to authenticated user
+    var isActive: Bool  // Only one active budget per user
+    var lastSyncedAt: Date?  // Track last successful sync
+    var needsSync: Bool  // Dirty flag for pending changes
+    var createdAt: Date  // Track creation timestamp
+    var updatedAt: Date  // Track last update timestamp
+
+    // Store complex data as encoded JSON (DEPRECATED - will migrate to CategoryDataModel)
     @Attribute(.externalStorage) var categoriesData: Data
     @Attribute(.externalStorage) var categoryAmountsData: Data
-    
-    // Relationship to transactions
+
+    // Relationships
     @Relationship(deleteRule: .cascade, inverse: \TransactionDataModel.budget)
     var transactions: [TransactionDataModel] = []
-    
-    init(budgetId: UUID, startDate: Date, endDate: Date, budgetType: String, budgetName: String, currencyCode: String, currencyName: String, currencySymbol: String, categoriesData: Data, categoryAmountsData: Data) {
+
+    @Relationship(deleteRule: .cascade, inverse: \CategoryDataModel.budget)
+    var categories: [CategoryDataModel] = []
+
+    init(budgetId: UUID, startDate: Date, endDate: Date, budgetType: String, budgetName: String, currencyCode: String, currencyName: String, currencySymbol: String, categoriesData: Data, categoryAmountsData: Data, userId: UUID? = nil, isActive: Bool = true) {
         self.budgetId = budgetId
         self.startDate = startDate
         self.endDate = endDate
@@ -31,6 +42,14 @@ final class BudgetDataModel {
         self.currencySymbol = currencySymbol
         self.categoriesData = categoriesData
         self.categoryAmountsData = categoryAmountsData
+
+        // Initialize sync metadata
+        self.userId = userId
+        self.isActive = isActive
+        self.lastSyncedAt = nil
+        self.needsSync = true
+        self.createdAt = Date()
+        self.updatedAt = Date()
     }
 }
 
@@ -38,23 +57,39 @@ final class BudgetDataModel {
 final class TransactionDataModel {
     @Attribute(.unique) var transactionId: UUID
     var amount: Double
-    var notes: String
+    var name: String  // Expense name
+    var notes: String  // Optional notes/description
     var date: Date
     var categoryId: UUID
     var isRecurring: Bool
     var recurrenceType: String
 
+    // Sync metadata - NEW for Supabase integration
+    var categoryGroup: String  // Denormalized for query performance
+    var lastSyncedAt: Date?  // Track last successful sync
+    var needsSync: Bool  // Dirty flag for pending changes
+    var createdAt: Date  // Track creation timestamp
+    var updatedAt: Date  // Track last update timestamp
+
     // Relationship to budget
     var budget: BudgetDataModel?
 
-    init(transactionId: UUID, amount: Double, notes: String, date: Date, categoryId: UUID, isRecurring: Bool = false, recurrenceType: String = "None") {
+    init(transactionId: UUID, amount: Double, name: String = "", notes: String = "", date: Date, categoryId: UUID, categoryGroup: String = "miscellaneous", isRecurring: Bool = false, recurrenceType: String = "None") {
         self.transactionId = transactionId
         self.amount = amount
+        self.name = name
         self.notes = notes
         self.date = date
         self.categoryId = categoryId
         self.isRecurring = isRecurring
         self.recurrenceType = recurrenceType
+
+        // Initialize sync metadata
+        self.categoryGroup = categoryGroup
+        self.lastSyncedAt = nil
+        self.needsSync = true
+        self.createdAt = Date()
+        self.updatedAt = Date()
     }
 }
 
@@ -62,24 +97,46 @@ final class TransactionDataModel {
 
 extension BudgetDataModel {
     func toBudget() -> Budget? {
-        do {
-            let categories = try JSONDecoder().decode([CategoryData].self, from: categoriesData).map { $0.toCategory() }
-            let categoryAmounts = try JSONDecoder().decode([String: Double].self, from: categoryAmountsData)
-            
+        // Try to load from CategoryDataModel relationship first
+        if !categories.isEmpty {
+            // New path: Load from CategoryDataModel relationship
+            let subcategories = categories.map { $0.toSubCategory() }
+            let categoryAmounts = Dictionary(
+                uniqueKeysWithValues: categories.map { ($0.categoryId.uuidString, $0.allocatedAmount) }
+            )
+
             let currency = Currency(code: currencyCode, name: currencyName, symbol: currencySymbol)
             let type = BudgetType(rawValue: budgetType) ?? .monthly
             let period = BudgetPeriod(type: type, startDate: startDate, endDate: endDate, customName: budgetName)
-            
+
             return Budget(
                 id: budgetId,
                 period: period,
                 currency: currency,
-                categories: categories,
+                categories: subcategories,
                 categoryAmounts: categoryAmounts
             )
-        } catch {
-            print("Failed to convert BudgetDataModel to Budget: \(error)")
-            return nil
+        } else {
+            // Legacy path: Try loading from JSON-encoded data for backward compatibility
+            do {
+                let categories = try JSONDecoder().decode([CategoryData].self, from: categoriesData).map { $0.toCategory() }
+                let categoryAmounts = try JSONDecoder().decode([String: Double].self, from: categoryAmountsData)
+
+                let currency = Currency(code: currencyCode, name: currencyName, symbol: currencySymbol)
+                let type = BudgetType(rawValue: budgetType) ?? .monthly
+                let period = BudgetPeriod(type: type, startDate: startDate, endDate: endDate, customName: budgetName)
+
+                return Budget(
+                    id: budgetId,
+                    period: period,
+                    currency: currency,
+                    categories: categories,
+                    categoryAmounts: categoryAmounts
+                )
+            } catch {
+                print("Failed to convert BudgetDataModel to Budget (legacy): \(error)")
+                return nil
+            }
         }
     }
     
@@ -108,6 +165,7 @@ extension TransactionDataModel {
         return Transaction(
             id: transactionId,
             amount: amount,
+            name: name,
             notes: notes,
             date: date,
             categoryId: categoryId,
@@ -116,13 +174,15 @@ extension TransactionDataModel {
         )
     }
 
-    static func from(_ transaction: Transaction) -> TransactionDataModel {
+    static func from(_ transaction: Transaction, categoryGroup: String? = nil) -> TransactionDataModel {
         return TransactionDataModel(
             transactionId: transaction.id,
             amount: transaction.amount,
+            name: transaction.name,
             notes: transaction.notes,
             date: transaction.date,
             categoryId: transaction.categoryId,
+            categoryGroup: categoryGroup ?? "Miscellaneous",  // Use provided or default to Miscellaneous
             isRecurring: transaction.isRecurring,
             recurrenceType: transaction.recurrenceType.rawValue
         )

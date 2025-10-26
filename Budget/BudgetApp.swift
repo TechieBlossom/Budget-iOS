@@ -13,6 +13,7 @@ struct BudgetApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             BudgetDataModel.self,
+            CategoryDataModel.self,
             TransactionDataModel.self
         ])
         let modelConfiguration = ModelConfiguration(

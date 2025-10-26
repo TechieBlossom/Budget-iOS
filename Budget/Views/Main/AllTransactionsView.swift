@@ -379,8 +379,11 @@ struct TransactionRowView: View {
                     // Transaction header
                     HStack(alignment: .bottom) {
                         VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                            DSText(transaction.notes.isEmpty ? "Expense" : transaction.notes, font: .dsHeadline, color: theme.colors.textPrimary)
+                            DSText(transaction.name.isEmpty ? "Expense" : transaction.name, font: .dsHeadline, color: theme.colors.textPrimary)
                                 .lineLimit(1)
+                                .onAppear {
+                                    print("🔍 Displaying transaction: ID=\(transaction.id), Name='\(transaction.name)', isEmpty=\(transaction.name.isEmpty)")
+                                }
                             HStack(spacing: DSSpacing.xxs) {
                                 DSText(subCategory?.name ?? "Unknown", font: .dsCaption, color: theme.colors.textSecondary)
                                 if let subCategory = subCategory {

@@ -67,12 +67,12 @@ class CategoryManager {
         subCategories.removeAll { $0.id == subCategory.id }
     }
 
-    func updateSubCategory(_ subCategory: SubCategory, name: String, categoryType: CategoryType? = nil) {
+    func updateSubCategory(_ subCategory: SubCategory, name: String, group: CategoryGroup? = nil, categoryType: CategoryType? = nil) {
         if let index = subCategories.firstIndex(where: { $0.id == subCategory.id }) {
             subCategories[index] = SubCategory(
                 id: subCategory.id,
                 name: name,
-                categoryGroup: subCategory.categoryGroup,
+                categoryGroup: group ?? subCategory.categoryGroup,
                 categoryType: categoryType ?? subCategory.categoryType
             )
         }
