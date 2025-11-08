@@ -655,12 +655,13 @@ struct ThemeButton: View {
 
                 Spacer()
 
-                // Radio button
-                Image(systemName: isSelected ? "circle.inset.filled" : "circle")
-                    .font(.dsBody)
+                // Checkbox (matching Filter by Category style)
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.dsHeadline)
                     .foregroundColor(isSelected ? theme.colors.primary : theme.colors.textSecondary)
             }
             .padding(.vertical, DSSpacing.xs)
+            .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
     }
