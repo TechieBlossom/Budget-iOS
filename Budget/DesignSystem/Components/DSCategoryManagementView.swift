@@ -16,6 +16,7 @@ struct DSCategoryManagementView: View {
     let onEditCategory: (SubCategory) -> Void
     let onDeleteCategory: (SubCategory) -> Void
     let onToggleCategoryType: ((SubCategory) -> Void)?
+    let onAddCategoryWithGroup: ((CategoryGroup) -> Void)?
 
     @Environment(\.appTheme) private var theme
 
@@ -35,7 +36,8 @@ struct DSCategoryManagementView: View {
         onAddCategory: @escaping () -> Void,
         onEditCategory: @escaping (SubCategory) -> Void,
         onDeleteCategory: @escaping (SubCategory) -> Void,
-        onToggleCategoryType: ((SubCategory) -> Void)? = nil
+        onToggleCategoryType: ((SubCategory) -> Void)? = nil,
+        onAddCategoryWithGroup: ((CategoryGroup) -> Void)? = nil
     ) {
         self.subCategories = subCategories
         self.categoryAmounts = categoryAmounts
@@ -50,6 +52,7 @@ struct DSCategoryManagementView: View {
         self.onEditCategory = onEditCategory
         self.onDeleteCategory = onDeleteCategory
         self.onToggleCategoryType = onToggleCategoryType
+        self.onAddCategoryWithGroup = onAddCategoryWithGroup
     }
 
     // MARK: - Computed Properties
@@ -141,6 +144,14 @@ struct DSCategoryManagementView: View {
                                                 onToggleCategoryType?(subCategory)
                                             } : nil
                                         )
+                                    }
+
+                                    // Add Category button for this group
+                                    if let onAddCategoryWithGroup = onAddCategoryWithGroup {
+                                        DSButton("Add \(group.displayName) Category", style: .outline, size: .medium) {
+                                            onAddCategoryWithGroup(group)
+                                        }
+                                        .padding(.top, DSSpacing.xxs)
                                     }
                                 }
                             }
