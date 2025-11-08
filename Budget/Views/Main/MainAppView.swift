@@ -27,6 +27,8 @@ struct MainAppView: View {
     @State private var notificationManager = NotificationManager()
     @StateObject private var analysisViewModel: AnalysisViewModel
     @State private var expensesOnlyMode = true  // On by default
+    @StateObject private var categoryGroupPreferences = CategoryGroupPreferences()
+    @State private var showingCategoryGroupFilter = false
     @State private var showingCurrencySettings = false
     @State private var showingPeriodSettings = false
     @State private var showingCategorySettings = false
@@ -45,10 +47,11 @@ struct MainAppView: View {
     }
 
     private var sortedCategoryGroups: [CategoryGroup] {
-        // Get groups that have sub-categories with budgets (respect expenses-only mode)
+        // Get groups that have sub-categories with budgets (respect expenses-only mode and selected groups)
         let groupsWithBudget = CategoryGroup.allCases.filter { group in
             let allocated = budgetManager.allocatedAmount(for: group, excludingSavings: expensesOnlyMode)
-            return allocated > 0
+            let isSelected = categoryGroupPreferences.selectedGroups.contains(group)
+            return allocated > 0 && isSelected
         }
 
         // Sort by spending percentage (highest first)
@@ -134,6 +137,10 @@ struct MainAppView: View {
             }
             .fullScreenCover(isPresented: $showingBudgetEdit) {
                 BudgetEditView(budgetManager: budgetManager, onBudgetUpdated: {})
+            }
+            .sheet(isPresented: $showingCategoryGroupFilter) {
+                DSCategoryGroupFilterSheet(preferences: categoryGroupPreferences)
+                    .presentationDetents([.medium, .large])
             }
             .navigationDestination(isPresented: $showingHistoricalBudgets) {
                 HistoricalBudgetsView()
@@ -347,23 +354,43 @@ struct MainAppView: View {
             ScrollView {
                 VStack(spacing: DSSpacing.xl) {                    // Budget Section
                     VStack(spacing: DSSpacing.md) {
-                        // Section Header with Toggle
+                        // Section Header with Settings Icon
                         HStack {
                             DSText("Budget Overview", font: .dsSmallTitle, color: theme.colors.textPrimary)
                             Spacer()
 
-                            // Expenses Only Toggle
-                            HStack(spacing: DSSpacing.xs) {
-                                DSText("Expenses Only", font: .dsCaption, color: theme.colors.textSecondary)
-                                Toggle("", isOn: $expensesOnlyMode)
-                                    .labelsHidden()
-                                    .tint(theme.colors.primary)
+                            // Category Group Filter Settings Icon
+                            Button(action: {
+                                HapticManager.shared.buttonTap()
+                                showingCategoryGroupFilter = true
+                            }) {
+                                ZStack(alignment: .topTrailing) {
+                                    Image(systemName: "slider.horizontal.3")
+                                        .font(.dsHeadline)
+                                        .foregroundColor(theme.colors.textPrimary)
+                                        .padding(8)
+
+                                    // Badge indicator when not all groups are selected
+                                    if !categoryGroupPreferences.isAllGroupsSelected {
+                                        Text("\(categoryGroupPreferences.selectedGroups.count)")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .frame(width: 16, height: 16)
+                                            .background(theme.colors.primary)
+                                            .clipShape(Circle())
+                                            .offset(x: 8, y: -4)
+                                    }
+                                }
                             }
                         }
                         .padding(.horizontal, DSSpacing.md)
 
                         // Budget Overview Hero Card
-                        OverviewHeroCard(budgetManager: budgetManager, excludeSavings: expensesOnlyMode)
+                        OverviewHeroCard(
+                            budgetManager: budgetManager,
+                            excludeSavings: expensesOnlyMode,
+                            selectedGroups: categoryGroupPreferences.selectedGroups
+                        )
                             .padding(.horizontal, DSSpacing.md)
                             .id(budgetManager.budget.id)
                             .transition(.opacity)
@@ -380,7 +407,11 @@ struct MainAppView: View {
                         .padding(.horizontal, DSSpacing.md)
 
                         // Single Chart - Group-based spending
-                        CategoryGroupBarChart(budgetManager: budgetManager, excludeSavings: expensesOnlyMode)
+                        CategoryGroupBarChart(
+                            budgetManager: budgetManager,
+                            excludeSavings: expensesOnlyMode,
+                            selectedGroups: categoryGroupPreferences.selectedGroups
+                        )
                     }
  
                     // All Transactions Link

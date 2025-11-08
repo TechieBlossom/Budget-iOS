@@ -647,6 +647,44 @@ class BudgetManager: BudgetManagerProtocol {
         return min(1.0, spent / budgetAmount)
     }
 
+    // MARK: - Budget Analysis with Category Group Filtering
+
+    func totalBudgetAmount(excludingSavings: Bool, selectedGroups: Set<CategoryGroup>) -> Double {
+        let categories = budget.categories.filter { category in
+            let matchesGroup = selectedGroups.contains(category.categoryGroup)
+            let matchesType = !excludingSavings || category.categoryType == .expense
+            return matchesGroup && matchesType
+        }
+        return categories.reduce(0.0) { total, category in
+            total + (budget.categoryAmounts[category.id.uuidString] ?? 0)
+        }
+    }
+
+    func totalSpent(excludingSavings: Bool, selectedGroups: Set<CategoryGroup>) -> Double {
+        let categories = budget.categories.filter { category in
+            let matchesGroup = selectedGroups.contains(category.categoryGroup)
+            let matchesType = !excludingSavings || category.categoryType == .expense
+            return matchesGroup && matchesType
+        }
+        let categoryIds = Set(categories.map { $0.id })
+        return transactions
+            .filter { categoryIds.contains($0.categoryId) }
+            .reduce(0.0) { $0 + $1.amount }
+    }
+
+    func totalRemains(excludingSavings: Bool, selectedGroups: Set<CategoryGroup>) -> Double {
+        let spent = totalSpent(excludingSavings: excludingSavings, selectedGroups: selectedGroups)
+        let budgetAmount = totalBudgetAmount(excludingSavings: excludingSavings, selectedGroups: selectedGroups)
+        return max(0, budgetAmount - spent)
+    }
+
+    func spentPercentage(excludingSavings: Bool, selectedGroups: Set<CategoryGroup>) -> Double {
+        let budgetAmount = totalBudgetAmount(excludingSavings: excludingSavings, selectedGroups: selectedGroups)
+        guard budgetAmount > 0 else { return 0 }
+        let spent = totalSpent(excludingSavings: excludingSavings, selectedGroups: selectedGroups)
+        return min(1.0, spent / budgetAmount)
+    }
+
     // MARK: - Sub-Category Level Calculations
 
     func spentAmount(for subCategory: SubCategory) -> Double {
