@@ -559,29 +559,29 @@ struct OverviewHeroCard: View {
     }
 
     private var totalBudgetAmount: Double {
-        if let selectedGroups = selectedGroups {
-            return budgetManager.totalBudgetAmount(excludingSavings: excludeSavings, selectedGroups: selectedGroups)
+        if let selectedGroups = selectedGroups, let concreteManager = budgetManager as? BudgetManager {
+            return concreteManager.totalBudgetAmount(excludingSavings: excludeSavings, selectedGroups: selectedGroups)
         }
         return budgetManager.totalBudgetAmount(excludingSavings: excludeSavings)
     }
 
     private var totalSpent: Double {
-        if let selectedGroups = selectedGroups {
-            return budgetManager.totalSpent(excludingSavings: excludeSavings, selectedGroups: selectedGroups)
+        if let selectedGroups = selectedGroups, let concreteManager = budgetManager as? BudgetManager {
+            return concreteManager.totalSpent(excludingSavings: excludeSavings, selectedGroups: selectedGroups)
         }
         return budgetManager.totalSpent(excludingSavings: excludeSavings)
     }
 
     private var totalRemains: Double {
-        if let selectedGroups = selectedGroups {
-            return budgetManager.totalRemains(excludingSavings: excludeSavings, selectedGroups: selectedGroups)
+        if let selectedGroups = selectedGroups, let concreteManager = budgetManager as? BudgetManager {
+            return concreteManager.totalRemains(excludingSavings: excludeSavings, selectedGroups: selectedGroups)
         }
         return budgetManager.totalRemains(excludingSavings: excludeSavings)
     }
 
     private var spentPercentage: Double {
-        if let selectedGroups = selectedGroups {
-            return budgetManager.spentPercentage(excludingSavings: excludeSavings, selectedGroups: selectedGroups)
+        if let selectedGroups = selectedGroups, let concreteManager = budgetManager as? BudgetManager {
+            return concreteManager.spentPercentage(excludingSavings: excludeSavings, selectedGroups: selectedGroups)
         }
         return budgetManager.spentPercentage(excludingSavings: excludeSavings)
     }
