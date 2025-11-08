@@ -103,13 +103,31 @@ struct HistoricalBudgetDetailView: View {
     @Environment(\.appTheme) private var theme
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = HistoricalBudgetDetailViewModel()
-    @State private var expandedCategories: Set<UUID> = []
+    @State private var expandedGroups: Set<CategoryGroup> = []
     @State private var showAllTransactions = false
 
     private var budgetPeriod: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         return "\(formatter.string(from: budget.startDate)) - \(formatter.string(from: budget.endDate))"
+    }
+
+    // Computed property to get the budget manager once data is loaded
+    private var budgetManager: HistoricalBudgetManager? {
+        guard !viewModel.categories.isEmpty else { return nil }
+        return viewModel.createBudgetManager(for: budget)
+    }
+
+    // Get sorted category groups based on spending
+    private var sortedCategoryGroups: [CategoryGroup] {
+        guard let manager = budgetManager else { return [] }
+
+        let groups = Set(manager.budget.categories.map { $0.categoryGroup })
+        return groups.sorted { group1, group2 in
+            let spent1 = manager.spentAmount(for: group1, excludingSavings: false)
+            let spent2 = manager.spentAmount(for: group2, excludingSavings: false)
+            return spent1 > spent2
+        }
     }
 
     var body: some View {
@@ -146,8 +164,8 @@ struct HistoricalBudgetDetailView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            } else {
-                // Budget details
+            } else if let manager = budgetManager {
+                // Budget details with Budget Tab layout
                 ScrollView {
                     VStack(spacing: DSSpacing.xl) {
                         // Info banner
@@ -170,17 +188,85 @@ struct HistoricalBudgetDetailView: View {
                         }
                         .padding(.horizontal, DSSpacing.md)
 
-                        // Budget summary
-                        budgetSummarySection
+                        // Budget Overview Section (matching Budget Tab)
+                        VStack(spacing: DSSpacing.md) {
+                            // Section Header
+                            HStack {
+                                DSText("Budget Overview", font: .dsSmallTitle, color: theme.colors.textPrimary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, DSSpacing.md)
 
-                        // Categories section
-                        if !viewModel.categories.isEmpty {
-                            categoriesSection
+                            // Budget Overview Hero Card
+                            OverviewHeroCard(
+                                budgetManager: manager,
+                                excludeSavings: false,
+                                selectedGroups: Set(CategoryGroup.allCases)
+                            )
+                            .padding(.horizontal, DSSpacing.md)
                         }
 
-                        // View All Transactions section
+                        // Chart Section - Category Groups (matching Budget Tab)
+                        VStack(alignment: .leading, spacing: DSSpacing.md) {
+                            // Heading
+                            HStack {
+                                DSText("Spending by Category", font: .dsSmallTitle, color: theme.colors.textPrimary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, DSSpacing.md)
+
+                            // Single Chart - Group-based spending
+                            CategoryGroupBarChart(
+                                budgetManager: manager,
+                                excludeSavings: false,
+                                selectedGroups: Set(CategoryGroup.allCases)
+                            )
+                        }
+
+                        // All Transactions Link (matching Budget Tab)
                         if !viewModel.transactions.isEmpty {
-                            viewAllTransactionsSection
+                            VStack(spacing: DSSpacing.md) {
+                                DSButtonCard(
+                                    "View All \(viewModel.transactions.count) Transactions",
+                                    subtitle: "\(viewModel.transactions.count) transactions"
+                                ) {
+                                    showAllTransactions = true
+                                }
+                                .padding(.horizontal, DSSpacing.md)
+                            }
+                        }
+
+                        // Spends Section (matching Budget Tab)
+                        if !sortedCategoryGroups.isEmpty {
+                            VStack(spacing: DSSpacing.md) {
+                                // Section Header
+                                HStack {
+                                    DSText("Spends", font: .dsSmallTitle, color: theme.colors.textPrimary)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, DSSpacing.md)
+
+                                // Category Group Cards
+                                LazyVStack(spacing: DSSpacing.md) {
+                                    ForEach(sortedCategoryGroups, id: \.self) { group in
+                                        CategoryGroupExpendableCard(
+                                            group: group,
+                                            budgetManager: manager,
+                                            isExpanded: expandedGroups.contains(group),
+                                            onToggle: {
+                                                toggleExpansion(for: group)
+                                            },
+                                            onSubCategoryTap: { _ in
+                                                // Read-only: do nothing on tap
+                                            },
+                                            onAddCategory: { _ in
+                                                // Read-only: do nothing
+                                            }
+                                        )
+                                    }
+                                }
+                                .padding(.horizontal, DSSpacing.md)
+                            }
                         }
 
                         // Bottom spacing
@@ -209,333 +295,25 @@ struct HistoricalBudgetDetailView: View {
             await viewModel.fetchBudgetDetails(budgetId: budget.id)
         }
         .navigationDestination(isPresented: $showAllTransactions) {
-            if !viewModel.categories.isEmpty && !viewModel.transactions.isEmpty {
+            if let manager = budgetManager {
                 AllTransactionsView(
-                    budgetManager: viewModel.createBudgetManager(for: budget),
+                    budgetManager: manager,
                     isReadOnly: true
                 )
             }
         }
     }
 
-    // MARK: - Budget Summary Section
-
-    private var budgetSummarySection: some View {
-        VStack(spacing: DSSpacing.md) {
-            // Section header
-            HStack {
-                DSText("Summary", font: .dsSmallTitle, color: theme.colors.textPrimary)
-                Spacer()
-            }
-            .padding(.horizontal, DSSpacing.md)
-
-            // Summary card
-            DSCard {
-                VStack(spacing: DSSpacing.lg) {
-                    // Total budget
-                    HStack {
-                        DSText("Total Budget", font: .dsBody, color: theme.colors.textSecondary)
-                        Spacer()
-                        DSText(formatCurrency(viewModel.totalBudgetAmount), font: .dsTitle, color: theme.colors.textPrimary)
-                            .fontWeight(.bold)
-                    }
-
-                    // Progress bar
-                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                        GeometryReader { geometry in
-                            ZStack(alignment: .leading) {
-                                // Background
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(theme.colors.surfaceVariant)
-                                    .frame(height: 12)
-
-                                // Progress
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(progressColor)
-                                    .frame(width: geometry.size.width * viewModel.spentPercentage, height: 12)
-                            }
-                        }
-                        .frame(height: 12)
-
-                        // Percentage label
-                        DSText("\(Int(viewModel.spentPercentage * 100))% spent", font: .dsCaption, color: theme.colors.textSecondary)
-                    }
-
-                    // Spent and remaining
-                    HStack(spacing: DSSpacing.xl) {
-                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                            DSText("Spent", font: .dsCaption, color: theme.colors.textSecondary)
-                            DSText(formatCurrency(viewModel.totalSpent), font: .dsHeadline, color: theme.colors.textPrimary)
-                                .fontWeight(.semibold)
-                        }
-
-                        Spacer()
-
-                        VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
-                            DSText("Remaining", font: .dsCaption, color: theme.colors.textSecondary)
-                            DSText(formatCurrency(viewModel.totalRemaining), font: .dsHeadline, color: theme.colors.primary)
-                                .fontWeight(.semibold)
-                        }
-                    }
-
-                    // Transaction count
-                    Divider()
-                        .padding(.vertical, DSSpacing.xxs)
-
-                    HStack {
-                        DSText("Total Transactions", font: .dsBody, color: theme.colors.textSecondary)
-                        Spacer()
-                        DSText("\(viewModel.transactions.count)", font: .dsBody, color: theme.colors.textPrimary)
-                            .fontWeight(.medium)
-                    }
-                }
-                .padding(.horizontal, DSSpacing.md)
-                .padding(.vertical, DSSpacing.md)
-            }
-            .padding(.horizontal, DSSpacing.md)
-        }
-    }
-
-    // MARK: - View All Transactions Section
-
-    private var viewAllTransactionsSection: some View {
-        VStack(spacing: DSSpacing.md) {
-            DSCard {
-                Button(action: {
-                    showAllTransactions = true
-                }) {
-                    HStack(spacing: DSSpacing.md) {
-                        // Icon
-                        Image(systemName: "list.bullet.rectangle")
-                            .font(.dsTitle)
-                            .foregroundColor(theme.colors.primary)
-                            .frame(width: 40, height: 40)
-                            .background(theme.colors.primary.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                        // Info
-                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                            DSText("View All Transactions", font: .dsHeadline, color: theme.colors.textPrimary)
-                                .fontWeight(.medium)
-
-                            DSText("See all \(viewModel.transactions.count) transactions with search and filters", font: .dsCaption, color: theme.colors.textSecondary)
-                        }
-
-                        Spacer()
-
-                        // Chevron
-                        Image(systemName: "chevron.right")
-                            .font(.dsSubtitle)
-                            .foregroundColor(theme.colors.textSecondary)
-                    }
-                    .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, DSSpacing.sm)
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-            .padding(.horizontal, DSSpacing.md)
-        }
-    }
-
-    // MARK: - Categories Section
-
-    private var categoriesSection: some View {
-        VStack(spacing: DSSpacing.md) {
-            // Section header
-            HStack {
-                DSText("Categories (\(viewModel.categories.count))", font: .dsSmallTitle, color: theme.colors.textPrimary)
-                Spacer()
-            }
-            .padding(.horizontal, DSSpacing.md)
-
-            // Categories list
-            LazyVStack(spacing: DSSpacing.md) {
-                ForEach(viewModel.categories, id: \.id) { category in
-                    CategoryDetailCard(
-                        category: category,
-                        transactions: viewModel.transactions(for: category.id),
-                        spentAmount: viewModel.spentAmount(for: category.id),
-                        isExpanded: expandedCategories.contains(category.id),
-                        onToggle: {
-                            toggleExpansion(for: category.id)
-                        }
-                    )
-                }
-            }
-            .padding(.horizontal, DSSpacing.md)
-        }
-    }
-
     // MARK: - Helper Methods
 
-    private var progressColor: Color {
-        let percentage = viewModel.spentPercentage
-        if percentage >= 1.0 {
-            return .red
-        } else if percentage >= 0.8 {
-            return .orange
-        } else {
-            return theme.colors.primary
-        }
-    }
-
-    private func formatCurrency(_ amount: Double) -> String {
-        return "\(budget.currencySymbol)\(String(format: "%.2f", amount))"
-    }
-
-    private func toggleExpansion(for categoryId: UUID) {
+    private func toggleExpansion(for group: CategoryGroup) {
         withAnimation(.easeInOut(duration: 0.3)) {
-            if expandedCategories.contains(categoryId) {
-                expandedCategories.remove(categoryId)
+            if expandedGroups.contains(group) {
+                expandedGroups.remove(group)
             } else {
-                expandedCategories.insert(categoryId)
+                expandedGroups.insert(group)
             }
         }
-    }
-}
-
-// MARK: - Category Detail Card
-
-struct CategoryDetailCard: View {
-    let category: SupabaseCategory
-    let transactions: [SupabaseTransaction]
-    let spentAmount: Double
-    let isExpanded: Bool
-    let onToggle: () -> Void
-
-    @Environment(\.appTheme) private var theme
-
-    private var spentPercentage: Double {
-        guard category.allocatedAmount > 0 else { return 0 }
-        return min(1.0, spentAmount / category.allocatedAmount)
-    }
-
-    private var remainingAmount: Double {
-        max(0, category.allocatedAmount - spentAmount)
-    }
-
-    private var progressColor: Color {
-        if spentPercentage >= 1.0 {
-            return .red
-        } else if spentPercentage >= 0.8 {
-            return .orange
-        } else {
-            return theme.colors.primary
-        }
-    }
-
-    var body: some View {
-        DSCard(padding: 8) {
-            VStack(spacing: DSSpacing.md) {
-                // Header - Always visible
-                Button(action: onToggle) {
-                    HStack(spacing: DSSpacing.sm) {
-                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                            DSText(category.name, font: .dsHeadline, color: theme.colors.textPrimary)
-                                .fontWeight(.medium)
-
-                            HStack(spacing: DSSpacing.xs) {
-                                DSText("Budget:", font: .dsCaption, color: theme.colors.textSecondary)
-                                DSText(String(format: "%.2f", category.allocatedAmount), font: .dsCaption, color: theme.colors.textPrimary)
-                            }
-                        }
-
-                        Spacer()
-
-                        VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
-                            DSText(String(format: "%.2f", spentAmount), font: .dsHeadline, color: theme.colors.textPrimary)
-                                .fontWeight(.semibold)
-                            DSText("\(transactions.count) transactions", font: .dsCaption, color: theme.colors.textSecondary)
-                        }
-
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.dsSubtitle)
-                            .foregroundColor(theme.colors.textSecondary)
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
-
-                // Progress bar
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(theme.colors.surfaceVariant)
-                            .frame(height: 8)
-
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(progressColor)
-                            .frame(width: geometry.size.width * spentPercentage, height: 8)
-                    }
-                }
-                .frame(height: 8)
-
-                // Expanded content - Transactions
-                if isExpanded && !transactions.isEmpty {
-                    Divider()
-                        .padding(.vertical, DSSpacing.xxs)
-
-                    VStack(spacing: DSSpacing.sm) {
-                        ForEach(transactions, id: \.id) { transaction in
-                            TransactionHistoryRow(transaction: transaction)
-                        }
-                    }
-                }
-
-                // Empty state when expanded but no transactions
-                if isExpanded && transactions.isEmpty {
-                    Divider()
-                        .padding(.vertical, DSSpacing.xxs)
-
-                    DSText("No transactions", font: .dsCaption, color: theme.colors.textSecondary)
-                        .padding(.vertical, DSSpacing.sm)
-                }
-            }
-            .padding(.horizontal, DSSpacing.sm)
-            .padding(.vertical, DSSpacing.sm)
-        }
-    }
-}
-
-// MARK: - Transaction History Row
-
-struct TransactionHistoryRow: View {
-    let transaction: SupabaseTransaction
-
-    @Environment(\.appTheme) private var theme
-
-    private var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter.string(from: transaction.transactionDate)
-    }
-
-    var body: some View {
-        HStack(spacing: DSSpacing.sm) {
-            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                if !transaction.notes.isEmpty {
-                    DSText(transaction.notes, font: .dsBody, color: theme.colors.textPrimary)
-                } else {
-                    DSText("Transaction", font: .dsBody, color: theme.colors.textSecondary)
-                        .italic()
-                }
-
-                DSText(formattedDate, font: .dsCaption, color: theme.colors.textSecondary)
-
-                if transaction.isRecurring {
-                    HStack(spacing: DSSpacing.xxs) {
-                        Image(systemName: "repeat")
-                            .font(.system(size: 10))
-                        DSText(transaction.recurrenceType.capitalized, font: .dsCaption, color: theme.colors.primary)
-                    }
-                }
-            }
-
-            Spacer()
-
-            DSText(String(format: "%.2f", transaction.amount), font: .dsBody, color: theme.colors.textPrimary)
-                .fontWeight(.medium)
-        }
-        .padding(.vertical, DSSpacing.xxs)
     }
 }
 
