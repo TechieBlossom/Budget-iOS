@@ -309,9 +309,6 @@ struct SyncSection: View {
                     }
 
                     Spacer()
-
-                    // Sync status indicator
-                    SyncStatusView(state: budgetManager.syncState)
                 }
 
                 // Sync now button
