@@ -94,7 +94,7 @@ struct CategoryDetailView: View {
 
                                             // Progress circle
                                             Circle()
-                                                .trim(from: 0, to: min(1.0, animatedSpentPercentage))
+                                                .trim(from: 0, to: animatedSpentPercentage)
                                                 .stroke(
                                                     category.categoryGroup.color,
                                                     style: StrokeStyle(lineWidth: 8, lineCap: .round)
