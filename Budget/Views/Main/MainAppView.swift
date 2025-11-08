@@ -250,44 +250,9 @@ struct MainAppView: View {
                 // Only show toolbar items when Budget tab is selected
                 if selectedTab == .budget {
                     ToolbarItem(placement: .principal) {
-                        VStack(spacing: DSSpacing.md) {
-                            // Centered budget name and navigation
-                            HStack(spacing: DSSpacing.md) {
-                                // Previous budget button
-                                Button(action: {
-                                    HapticManager.shared.buttonTap()
-                                    withAnimation(.easeInOut(duration: 0.3)) {
-                                        _ = budgetManager.switchToPreviousBudget()
-                                    }
-                                }) {
-                                    Image(systemName: "chevron.left")
-                                        .font(.dsHeadline)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(budgetManager.canSwitchToPrevious() ? theme.colors.textPrimary : theme.colors.textSecondary.opacity(0.3))
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                .disabled(!budgetManager.canSwitchToPrevious())
-                                
-                                VStack(alignment: .center, spacing: 2) {
-                                    DSText(budgetManager.budget.budgetName, font: .dsHeadline, color: theme.colors.textPrimary)
-                                    DSText(budgetManager.budget.period.formattedDateRange, font: .dsCaption, color: theme.colors.textSecondary)
-                                }
-                                
-                                // Next budget button
-                                Button(action: {
-                                    HapticManager.shared.buttonTap()
-                                    withAnimation(.easeInOut(duration: 0.3)) {
-                                        _ = budgetManager.switchToNextBudget()
-                                    }
-                                }) {
-                                    Image(systemName: "chevron.right")
-                                        .font(.dsHeadline)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(budgetManager.canSwitchToNext() ? theme.colors.textPrimary : theme.colors.textSecondary.opacity(0.3))
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                .disabled(!budgetManager.canSwitchToNext())
-                            }
+                        VStack(alignment: .center, spacing: 2) {
+                            DSText(budgetManager.budget.budgetName, font: .dsHeadline, color: theme.colors.textPrimary)
+                            DSText(budgetManager.budget.period.formattedDateRange, font: .dsCaption, color: theme.colors.textSecondary)
                         }
                     }
                     
