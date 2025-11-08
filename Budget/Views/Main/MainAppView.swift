@@ -34,6 +34,8 @@ struct MainAppView: View {
     @State private var showingAllTransactions = false
     @State private var showingHistoricalBudgets = false
     @State private var showingSignOutConfirmation = false
+    @State private var showingAddCategory = false
+    @State private var preSelectedCategoryGroup: CategoryGroup?
     @Environment(AuthManager.self) private var authManager
 
     init(budgetManager: BudgetManager, showingBudgetSettings: Binding<Bool>) {
@@ -99,20 +101,12 @@ struct MainAppView: View {
                     budgetName: budgetManager.budget.budgetName,
                     categoryAmounts: budgetManager.budget.categoryAmounts,
                     existingTransaction: nil,
-                    onSaveTransaction: { transaction in
-                        if budgetManager.addTransaction(transaction) {
-                            HapticManager.shared.transactionAdded()
-                            notificationManager.showSuccess("Transaction added successfully!")
-                        } else {
-                            HapticManager.shared.operationFailed()
-                            notificationManager.showError("Failed to add transaction")
-                        }
+                    budgetManager: budgetManager,
+                    onSuccess: {
+                        HapticManager.shared.transactionAdded()
+                        notificationManager.showSuccess("Transaction added successfully!")
                         showingAddTransaction = false
-                    },
-                    onUpdateBudget: { updatedBudget in
-                        return budgetManager.updateBudget(updatedBudget)
-                    },
-                    onDeleteTransaction: nil
+                    }
                 )
             }
             .fullScreenCover(item: $transactionToEdit) { transaction in
@@ -124,35 +118,10 @@ struct MainAppView: View {
                     budgetName: budgetManager.budget.budgetName,
                     categoryAmounts: budgetManager.budget.categoryAmounts,
                     existingTransaction: transaction,
-                    onSaveTransaction: { updatedTransaction in
-                        if budgetManager.updateTransaction(updatedTransaction) {
-                            HapticManager.shared.success()
-                            notificationManager.showSuccess("Transaction updated successfully!")
-                        } else {
-                            HapticManager.shared.operationFailed()
-                            notificationManager.showError("Failed to update transaction")
-                        }
-                        transactionToEdit = nil
-                    },
-                    onUpdateBudget: { updatedBudget in
-                        return budgetManager.updateBudget(updatedBudget)
-                    },
-                    onDeleteTransaction: { transactionToDelete in
-                        if budgetManager.deleteTransaction(transactionToDelete) {
-                            HapticManager.shared.transactionDeleted()
-                            notificationManager.showUndo("Transaction deleted") {
-                                if budgetManager.undoLastTransaction() {
-                                    HapticManager.shared.transactionRestored()
-                                    notificationManager.showSuccess("Transaction restored!")
-                                } else {
-                                    HapticManager.shared.operationFailed()
-                                    notificationManager.showError("Failed to restore transaction")
-                                }
-                            }
-                        } else {
-                            HapticManager.shared.operationFailed()
-                            notificationManager.showError("Failed to delete transaction")
-                        }
+                    budgetManager: budgetManager,
+                    onSuccess: {
+                        HapticManager.shared.success()
+                        notificationManager.showSuccess("Transaction updated successfully!")
                         transactionToEdit = nil
                     }
                 )
@@ -250,6 +219,23 @@ struct MainAppView: View {
                     }
                 )
             }
+            .sheet(isPresented: $showingAddCategory) {
+                DSAddCategorySheet(
+                    subCategory: nil,
+                    allocatedAmount: 0,
+                    currency: budgetManager.budget.currency,
+                    budgetManager: budgetManager,
+                    preSelectedGroup: preSelectedCategoryGroup,
+                    onSuccess: {
+                        HapticManager.shared.success()
+                        notificationManager.showSuccess("Category added successfully!")
+                        preSelectedCategoryGroup = nil
+                    },
+                    onCancel: {
+                        preSelectedCategoryGroup = nil
+                    }
+                )
+            }
             .onAppear {
                 setupNotifications()
             }
@@ -298,6 +284,10 @@ struct MainAppView: View {
                         }
                     }
                     
+                    ToolbarItem(placement: .topBarLeading) {
+                        SyncStatusIcon(syncState: budgetManager.syncState)
+                    }
+
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button(action: {
@@ -437,6 +427,11 @@ struct MainAppView: View {
                                         onSubCategoryTap: { subCategory in
                                             HapticManager.shared.buttonTap()
                                             selectedCategory = subCategory
+                                        },
+                                        onAddCategory: { group in
+                                            HapticManager.shared.buttonTap()
+                                            preSelectedCategoryGroup = group
+                                            showingAddCategory = true
                                         }
                                     )
                                 }
@@ -455,7 +450,7 @@ struct MainAppView: View {
                 }.padding(.top, DSSpacing.lg)
             }
             .refreshable {
-                await budgetManager.syncActiveBudget()
+                await budgetManager.refreshFromSupabase()
             }
         .background(theme.colors.background)
     }

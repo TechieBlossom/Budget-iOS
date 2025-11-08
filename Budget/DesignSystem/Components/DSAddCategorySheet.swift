@@ -22,6 +22,7 @@ struct DSAddCategorySheet: View {
         allocatedAmount: Double,
         currency: Currency,
         budgetManager: (any BudgetManagerProtocol)?,
+        preSelectedGroup: CategoryGroup? = nil,
         onSuccess: @escaping () -> Void,
         onSuccessWithValues: ((SubCategory, Double) -> Void)? = nil,
         onCancel: @escaping () -> Void
@@ -42,8 +43,16 @@ struct DSAddCategorySheet: View {
                 allocatedAmount: allocatedAmount
             ))
         } else {
-            // Add mode
-            self._editState = State(initialValue: CategoryEditState())
+            // Add mode with optional pre-selected group
+            var initialState = CategoryEditState()
+            if let preSelectedGroup = preSelectedGroup {
+                initialState.group = preSelectedGroup
+                // Auto-update type based on group
+                if preSelectedGroup == .financialGoals {
+                    initialState.type = .savings
+                }
+            }
+            self._editState = State(initialValue: initialState)
         }
 
         // Initialize amount text
@@ -286,8 +295,10 @@ struct DSAddCategorySheet: View {
                     var mutableAmounts = currentBudget.categoryAmounts
 
                     if let index = mutableCategories.firstIndex(where: { $0.id == subCategory.id }) {
+                        print("   📝 Updating mutableAmounts[\(subCategory.id.uuidString)] from \(mutableAmounts[subCategory.id.uuidString] ?? -1) to \(editState.amount)")
                         mutableCategories[index] = updatedCategory
                         mutableAmounts[subCategory.id.uuidString] = editState.amount
+                        print("   ✅ mutableAmounts[\(subCategory.id.uuidString)] is now \(mutableAmounts[subCategory.id.uuidString] ?? -1)")
                     }
 
                     let updatedBudget = Budget(
@@ -298,16 +309,45 @@ struct DSAddCategorySheet: View {
                         categoryAmounts: mutableAmounts
                     )
 
-                    _ = budgetManager.updateBudget(updatedBudget)
+                    print("📝 DSAddCategorySheet: Calling updateBudget (async)...")
+                    print("   Updated category '\(updatedCategory.name)' with amount: \(editState.amount)")
+                    print("   updatedBudget.categoryAmounts for this category: \(updatedBudget.categoryAmounts[subCategory.id.uuidString] ?? -1)")
 
-                    // Wait for sync to complete
-                    await budgetManager.syncActiveBudget()
-
-                    await MainActor.run {
-                        isSaving = false
-                        onSuccess()
-                        dismiss()
+                    // Use async version directly if available
+                    let success: Bool
+                    if let manager = budgetManager as? BudgetManager {
+                        success = await manager.updateBudget(updatedBudget)
+                    } else {
+                        success = budgetManager.updateBudget(updatedBudget)
                     }
+
+                    print("   Update result: \(success)")
+
+                    if !success {
+                        print("   ❌ Update failed")
+                        isSaving = false
+                        if let manager = budgetManager as? BudgetManager {
+                            errorMessage = manager.lastError ?? "Failed to update category"
+                            print("   Error: \(manager.lastError ?? "unknown")")
+                        } else {
+                            errorMessage = "Failed to update category"
+                        }
+                        return
+                    }
+
+                    print("   ✅ Update succeeded")
+
+                    // Force a refresh to ensure UI has latest data
+                    if let manager = budgetManager as? BudgetManager {
+                        print("   🔄 Forcing refresh from Supabase to sync UI...")
+                        await manager.refreshFromSupabase()
+                        print("   ✅ Refresh complete")
+                    }
+
+                    print("   ✅ Dismissing sheet")
+                    isSaving = false
+                    onSuccess()
+                    dismiss()
                 } else {
                     // Add new category
                     let newCategory = SubCategory(
@@ -331,22 +371,47 @@ struct DSAddCategorySheet: View {
                         categoryAmounts: mutableAmounts
                     )
 
-                    _ = budgetManager.updateBudget(updatedBudget)
+                    print("➕ DSAddCategorySheet: Calling updateBudget to add category (async)...")
 
-                    // Wait for sync to complete
-                    await budgetManager.syncActiveBudget()
-
-                    await MainActor.run {
-                        isSaving = false
-                        onSuccess()
-                        dismiss()
+                    // Use async version directly if available
+                    let success: Bool
+                    if let manager = budgetManager as? BudgetManager {
+                        success = await manager.updateBudget(updatedBudget)
+                    } else {
+                        success = budgetManager.updateBudget(updatedBudget)
                     }
+
+                    print("   Update result: \(success)")
+
+                    if !success {
+                        print("   ❌ Update failed")
+                        isSaving = false
+                        if let manager = budgetManager as? BudgetManager {
+                            errorMessage = manager.lastError ?? "Failed to add category"
+                            print("   Error: \(manager.lastError ?? "unknown")")
+                        } else {
+                            errorMessage = "Failed to add category"
+                        }
+                        return
+                    }
+
+                    print("   ✅ Update succeeded")
+
+                    // Force a refresh to ensure UI has latest data
+                    if let manager = budgetManager as? BudgetManager {
+                        print("   🔄 Forcing refresh from Supabase to sync UI...")
+                        await manager.refreshFromSupabase()
+                        print("   ✅ Refresh complete")
+                    }
+
+                    print("   ✅ Dismissing sheet")
+                    isSaving = false
+                    onSuccess()
+                    dismiss()
                 }
             } catch {
-                await MainActor.run {
-                    isSaving = false
-                    errorMessage = "Failed to save: \(error.localizedDescription)"
-                }
+                isSaving = false
+                errorMessage = "Failed to save: \(error.localizedDescription)"
             }
         }
     }

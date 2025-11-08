@@ -16,6 +16,9 @@ struct ContentView: View {
     @State private var budgetManager: BudgetManager?
     @State private var showingBudgetExpired = false
     @State private var showingBudgetSettings = false
+    @State private var isLoadingInitialData = false
+    @State private var showContentWithAnimation = false
+    @AppStorage("dismissedExpiredBudgetId") private var dismissedExpiredBudgetId: String = ""
 
     var body: some View {
         Group {
@@ -23,12 +26,18 @@ struct ContentView: View {
             if !authManager.isAuthenticated {
                 AuthView()
                     .environment(authManager)
+            } else if isLoadingInitialData {
+                // Show loading view while fetching data from Supabase after login
+                DataLoadingView()
+                    .transition(.opacity)
             } else if hasCompletedOnboarding, let manager = budgetManager {
                 MainAppView(
                     budgetManager: manager,
                     showingBudgetSettings: $showingBudgetSettings
                 )
                 .environment(authManager)
+                .opacity(showContentWithAnimation ? 1 : 0)
+                .animation(.easeIn(duration: 0.4), value: showContentWithAnimation)
                 .overlay {
                     if showingBudgetExpired {
                         BudgetExpiredView(
@@ -47,6 +56,11 @@ struct ContentView: View {
                             onChangeBudgetSettings: {
                                 showingBudgetSettings = true
                                 showingBudgetExpired = false
+                            },
+                            onViewExpiredBudget: {
+                                // Mark budget as dismissed and close overlay
+                                dismissedExpiredBudgetId = manager.currentBudget?.id.uuidString ?? ""
+                                showingBudgetExpired = false
                             }
                         )
                         .transition(.opacity)
@@ -61,12 +75,17 @@ struct ContentView: View {
                             _ = manager.createBudget(completedBudget)
                             budgetManager = manager
                             hasCompletedOnboarding = true
+                            showContentWithAnimation = true
+
+                            // Set budget manager reference in auth manager for logout cleanup
+                            authManager.budgetManager = manager
 
                             // Schedule budget end notifications for the new budget
                             NotificationService.shared.scheduleBudgetEndNotifications(for: completedBudget)
                         }
                     }
                 )
+                .environment(authManager)
             }
         }
         .environment(\.appTheme, AppTheme.shared)
@@ -76,14 +95,21 @@ struct ContentView: View {
             if authManager.isAuthenticated {
                 await MainActor.run {
                     let manager = BudgetManager(modelContext: modelContext, authManager: authManager)
-                    if manager.hasExistingBudgets() {
-                        budgetManager = manager
-                        hasCompletedOnboarding = true
+                    budgetManager = manager
 
-                        // Check if current budget is expired
+                    // Set budget manager reference in auth manager for logout cleanup
+                    authManager.budgetManager = manager
+
+                    if manager.hasExistingBudgets() {
+                        // Has cached data - show main screen immediately
+                        hasCompletedOnboarding = true
+                        showContentWithAnimation = true
                         checkBudgetStatus(manager: manager)
+                    } else {
+                        // No local data - show loading while syncing
+                        isLoadingInitialData = true
                     }
-                    // If no existing budgets, keep hasCompletedOnboarding = false to show onboarding
+                    // onChange(syncState) will handle sync completion
                 }
             }
         }
@@ -95,31 +121,80 @@ struct ContentView: View {
                     let manager = BudgetManager(modelContext: modelContext, authManager: authManager)
                     budgetManager = manager
 
+                    // Set budget manager reference in auth manager for logout cleanup
+                    print("🔗 ContentView: Setting budgetManager reference in AuthManager")
+                    authManager.budgetManager = manager
+                    print("   ✅ Reference set successfully")
+
                     // Check immediately for local budgets
                     if manager.hasExistingBudgets() {
+                        // Has local data - show main screen immediately
                         hasCompletedOnboarding = true
+                        showContentWithAnimation = true
                         checkBudgetStatus(manager: manager)
+                    } else {
+                        // No local data - show loading while we sync from Supabase
+                        isLoadingInitialData = true
                     }
-                    // If no local budgets, the onChange(syncState) will handle it after sync
+                    // onChange(syncState) will handle completion of sync
                 }
             } else {
                 // When user signs out, reset state
                 budgetManager = nil
                 hasCompletedOnboarding = false
+                isLoadingInitialData = false
+                showContentWithAnimation = false
             }
         }
         .onChange(of: budgetManager?.syncState) { _, newState in
-            // When sync completes successfully, check for budgets again
-            guard let manager = budgetManager else { return }
+            // When sync completes, handle the result
+            guard let manager = budgetManager, let newState = newState else { return }
 
             switch newState {
-            case .success:
-                // Sync completed - check if we now have budgets
-                if !hasCompletedOnboarding && manager.hasExistingBudgets() {
+            case .synced:
+                // Sync completed successfully
+                if isLoadingInitialData {
+                    // We were waiting for initial sync after login
+                    isLoadingInitialData = false
+
+                    if manager.hasExistingBudgets() {
+                        // Found remote data - show main screen with fade-in
+                        hasCompletedOnboarding = true
+                        // Delay to ensure smooth transition
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(100))
+                            showContentWithAnimation = true
+                        }
+                        checkBudgetStatus(manager: manager)
+                    } else {
+                        // No remote data either - show onboarding
+                        hasCompletedOnboarding = false
+                    }
+                } else if !hasCompletedOnboarding && manager.hasExistingBudgets() {
+                    // Data synced while already in app
                     hasCompletedOnboarding = true
+                    showContentWithAnimation = true
                     checkBudgetStatus(manager: manager)
                 }
-            default:
+
+            case .error, .offline:
+                // Sync failed - if we were loading initial data, decide what to show
+                if isLoadingInitialData {
+                    isLoadingInitialData = false
+
+                    if manager.hasExistingBudgets() {
+                        // Has cached data - show it
+                        hasCompletedOnboarding = true
+                        showContentWithAnimation = true
+                        checkBudgetStatus(manager: manager)
+                    } else {
+                        // No data at all - show onboarding
+                        hasCompletedOnboarding = false
+                    }
+                }
+
+            case .syncing:
+                // Still syncing - keep loading state if appropriate
                 break
             }
         }
@@ -142,8 +217,12 @@ struct ContentView: View {
 
         switch status {
         case .expired:
-            withAnimation(.easeInOut(duration: 0.3)) {
-                showingBudgetExpired = true
+            // Only show if user hasn't dismissed this specific budget
+            let currentBudgetId = manager.currentBudget?.id.uuidString ?? ""
+            if currentBudgetId != dismissedExpiredBudgetId {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showingBudgetExpired = true
+                }
             }
         case .endingSoon(let daysLeft):
             // For ending soon, we could show a banner or send notification
@@ -154,6 +233,10 @@ struct ContentView: View {
             }
         case .active, .noBudget:
             showingBudgetExpired = false
+            // Clear dismissed state when viewing active budget
+            if !dismissedExpiredBudgetId.isEmpty {
+                dismissedExpiredBudgetId = ""
+            }
         }
     }
 }

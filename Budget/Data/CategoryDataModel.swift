@@ -13,17 +13,12 @@ final class CategoryDataModel {
     @Attribute(.unique) var categoryId: UUID
     var budgetId: UUID
     var name: String
-    var categoryGroup: String  // Store as String for persistence
-    var categoryType: String  // Store as String for persistence (expense/savings)
+    var categoryGroup: String
+    var categoryType: String
     var allocatedAmount: Double
+    var createdAt: Date
+    var updatedAt: Date
 
-    // Sync metadata - NEW for Supabase integration
-    var lastSyncedAt: Date?  // Track last successful sync
-    var needsSync: Bool  // Dirty flag for pending changes
-    var createdAt: Date  // Track creation timestamp
-    var updatedAt: Date  // Track last update timestamp
-
-    // Relationship to budget
     var budget: BudgetDataModel?
 
     init(categoryId: UUID, budgetId: UUID, name: String, categoryGroup: String, categoryType: String, allocatedAmount: Double = 0) {
@@ -33,10 +28,6 @@ final class CategoryDataModel {
         self.categoryGroup = categoryGroup
         self.categoryType = categoryType
         self.allocatedAmount = allocatedAmount
-
-        // Initialize sync metadata
-        self.lastSyncedAt = nil
-        self.needsSync = true
         self.createdAt = Date()
         self.updatedAt = Date()
     }
@@ -75,6 +66,10 @@ extension CategoryDataModel {
         case "lifestyle": return "Lifestyle"
         case "occasional": return "Occasional"
         case "financialGoals": return "Financial Goals"
+        case "debtObligations": return "Debt & Obligations"
+        case "businessExpenses": return "Business Expenses"
+        case "familyDependents": return "Family & Dependents"
+        case "homeProperty": return "Home & Property"
         case "miscellaneous": return "Miscellaneous"
         default: return dbFormat.capitalized
         }

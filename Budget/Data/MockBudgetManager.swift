@@ -248,19 +248,19 @@ class MockBudgetManager: BudgetManagerProtocol {
         return true
     }
 
-    func syncActiveBudget() async {
-        // Mock sync - just pretend we synced
+    func refreshFromSupabase() async {
+        // Mock refresh - just pretend we synced
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
     }
 
     private func generateSampleTransactions() {
         guard let firstCategory = budget.categories.first else { return }
-        
+
         // Add some sample transactions for demo
         transactions = [
-            Transaction(amount: 150.0, notes: "Grocery Store", date: Calendar.current.date(byAdding: .day, value: -2, to: Date()) ?? Date(), categoryId: firstCategory.id),
-            Transaction(amount: 75.0, notes: "Gas Station", date: Calendar.current.date(byAdding: .day, value: -5, to: Date()) ?? Date(), categoryId: firstCategory.id),
-            Transaction(amount: 200.0, notes: "Restaurant", date: Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date(), categoryId: firstCategory.id),
+            Transaction(amount: 150.0, notes: "Grocery Store", date: Calendar.current.date(byAdding: .day, value: -2, to: Date()) ?? Date(), categoryId: firstCategory.id, budgetId: budget.id),
+            Transaction(amount: 75.0, notes: "Gas Station", date: Calendar.current.date(byAdding: .day, value: -5, to: Date()) ?? Date(), categoryId: firstCategory.id, budgetId: budget.id),
+            Transaction(amount: 200.0, notes: "Restaurant", date: Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date(), categoryId: firstCategory.id, budgetId: budget.id),
         ]
     }
 }

@@ -10,6 +10,7 @@ import Supabase
 import AuthenticationServices
 import GoogleSignIn
 import SwiftUI
+import Security
 
 /// User profile data
 struct UserProfile: Codable {
@@ -44,6 +45,97 @@ struct ProfileUpdateRequest: Codable {
     }
 }
 
+// MARK: - Keychain Helper
+
+/// Secure storage for session data using iOS Keychain
+private enum KeychainHelper {
+    private static let service = "com.budget.app.auth"
+    private static let userIdKey = "cached_user_id"
+    private static let userEmailKey = "cached_user_email"
+
+    /// Save user ID to Keychain
+    static func saveUserId(_ userId: UUID) {
+        save(key: userIdKey, value: userId.uuidString)
+    }
+
+    /// Load user ID from Keychain
+    static func loadUserId() -> UUID? {
+        guard let string = load(key: userIdKey) else { return nil }
+        return UUID(uuidString: string)
+    }
+
+    /// Save user email to Keychain
+    static func saveUserEmail(_ email: String?) {
+        guard let email = email else { return }
+        save(key: userEmailKey, value: email)
+    }
+
+    /// Load user email from Keychain
+    static func loadUserEmail() -> String? {
+        return load(key: userEmailKey)
+    }
+
+    /// Clear all session data from Keychain
+    static func clearSession() {
+        delete(key: userIdKey)
+        delete(key: userEmailKey)
+    }
+
+    // MARK: - Private Keychain Operations
+
+    private static func save(key: String, value: String) {
+        guard let data = value.data(using: .utf8) else { return }
+
+        // Delete existing item first
+        delete(key: key)
+
+        // Add new item
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+
+        let status = SecItemAdd(query as CFDictionary, nil)
+        if status != errSecSuccess {
+            print("⚠️ Keychain save failed for \(key): \(status)")
+        }
+    }
+
+    private static func load(key: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let string = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        return string
+    }
+
+    private static func delete(key: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key
+        ]
+
+        SecItemDelete(query as CFDictionary)
+    }
+}
+
 /// Authentication state and user management
 @MainActor
 @Observable
@@ -70,6 +162,9 @@ class AuthManager: NSObject {
     /// Supabase client
     private let supabase = SupabaseClientManager.shared.client
 
+    /// Budget manager reference (for data cleanup on logout)
+    weak var budgetManager: AnyObject?
+
     // MARK: - Initialization
 
     override init() {
@@ -81,22 +176,121 @@ class AuthManager: NSObject {
 
     // MARK: - Session Management
 
-    /// Check for existing session
+    /// Check for existing session (with offline support)
     func checkSession() async {
         isLoading = true
         errorMessage = nil
 
         do {
+            // Try to get session from Supabase (normal online flow)
             let session = try await supabase.auth.session
             currentUser = session.user
+
+            // Persist session to Keychain for offline access
+            persistSessionToKeychain(session.user)
+
+            // Load user profile (requires network)
             await loadUserProfile()
+
+            print("✅ AuthManager: Session validated online")
         } catch {
-            // No active session, user needs to sign in
-            currentUser = nil
-            userProfile = nil
+            // Check if this is a network-related error
+            if isNetworkError(error) {
+                // Try to restore from cached session (offline mode)
+                if let cachedUser = loadCachedSession() {
+                    currentUser = cachedUser
+                    userProfile = nil // Can't load profile offline
+                    print("⚠️ AuthManager: Offline mode - using cached session (userId: \(cachedUser.id))")
+                } else {
+                    // No cached session available - user needs to sign in
+                    currentUser = nil
+                    userProfile = nil
+                    print("❌ AuthManager: No cached session - user must sign in")
+                }
+            } else {
+                // Non-network error (expired token, revoked access, etc.)
+                // Clear cache and require re-authentication
+                clearCachedSession()
+                currentUser = nil
+                userProfile = nil
+                print("❌ AuthManager: Session invalid - cleared cache, re-authentication required")
+            }
         }
 
         isLoading = false
+    }
+
+    /// Persist session to Keychain for offline access
+    private func persistSessionToKeychain(_ user: User) {
+        KeychainHelper.saveUserId(user.id)
+        KeychainHelper.saveUserEmail(user.email)
+        print("💾 AuthManager: Session persisted to Keychain")
+    }
+
+    /// Load cached session from Keychain
+    private func loadCachedSession() -> User? {
+        guard let userId = KeychainHelper.loadUserId() else {
+            return nil
+        }
+
+        let email = KeychainHelper.loadUserEmail()
+
+        // Create a minimal User object for offline access
+        // Note: Supabase User struct may not be directly instantiable
+        // We use a workaround by creating it through JSON serialization
+        let userDict: [String: Any] = [
+            "id": userId.uuidString,
+            "email": email as Any,
+            "aud": "authenticated",
+            "role": "authenticated",
+            "created_at": Date().ISO8601Format(),
+            "updated_at": Date().ISO8601Format()
+        ]
+
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: userDict)
+            let user = try JSONDecoder().decode(User.self, from: jsonData)
+            return user
+        } catch {
+            print("⚠️ AuthManager: Failed to reconstruct User from cache: \(error)")
+            return nil
+        }
+    }
+
+    /// Clear cached session from Keychain
+    private func clearCachedSession() {
+        KeychainHelper.clearSession()
+        print("🗑️ AuthManager: Cleared cached session from Keychain")
+    }
+
+    /// Check if error is network-related
+    private func isNetworkError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+
+        // Check for common network error domains and codes
+        if nsError.domain == NSURLErrorDomain {
+            return true
+        }
+
+        // Check for specific network-related error codes
+        let networkErrorCodes: Set<Int> = [
+            NSURLErrorNotConnectedToInternet,
+            NSURLErrorNetworkConnectionLost,
+            NSURLErrorCannotConnectToHost,
+            NSURLErrorTimedOut,
+            NSURLErrorDNSLookupFailed,
+            NSURLErrorCannotFindHost
+        ]
+
+        if networkErrorCodes.contains(nsError.code) {
+            return true
+        }
+
+        // Check error description for network-related keywords
+        let errorDescription = error.localizedDescription.lowercased()
+        let networkKeywords = ["network", "internet", "connection", "offline", "unreachable"]
+
+        return networkKeywords.contains { errorDescription.contains($0) }
     }
 
     /// Load user profile from Supabase
@@ -161,6 +355,9 @@ class AuthManager: NSObject {
             let session = try await supabase.auth.session
             currentUser = session.user
 
+            // Persist session to Keychain for offline access
+            persistSessionToKeychain(session.user)
+
             // Create profile if needed
             await createProfileIfNeeded()
 
@@ -210,6 +407,9 @@ class AuthManager: NSObject {
             let session = try await supabase.auth.session
             currentUser = session.user
 
+            // Persist session to Keychain for offline access
+            persistSessionToKeychain(session.user)
+
             // Create profile if needed
             await createProfileIfNeeded()
 
@@ -258,19 +458,50 @@ class AuthManager: NSObject {
 
     // MARK: - Sign Out
 
-    /// Sign out current user
+    /// Sign out current user and clear all local data
     func signOut() async throws {
+        print("🚪 AuthManager: Starting logout process...")
         isLoading = true
         errorMessage = nil
 
         do {
+            // Clear local database before signing out
+            print("   Checking budgetManager reference...")
+            if let manager = budgetManager as? BudgetManager {
+                print("   ✅ BudgetManager reference found, clearing data...")
+                do {
+                    try manager.clearAllData()
+                    print("   ✅ Local data cleared on logout")
+                } catch {
+                    print("   ⚠️ Warning: Failed to clear local data: \(error)")
+                    // Continue with sign out even if data cleanup fails
+                }
+            } else {
+                print("   ⚠️ WARNING: BudgetManager reference is nil - data NOT cleared!")
+                print("   budgetManager value: \(String(describing: budgetManager))")
+            }
+
+            // Clear cached session from Keychain
+            print("   Clearing cached session from Keychain...")
+            clearCachedSession()
+            print("   ✅ Keychain session cleared")
+
+            // Clear sync timestamp from UserDefaults (backup cleanup)
+            print("   Clearing sync timestamp from UserDefaults...")
+            UserDefaults.standard.removeObject(forKey: "lastSyncTimestamp")
+            print("   ✅ Sync timestamp cleared")
+
+            // Sign out from Supabase
+            print("   Signing out from Supabase...")
             try await supabase.auth.signOut()
             currentUser = nil
             userProfile = nil
             isLoading = false
+            print("   ✅ Logout completed successfully")
         } catch {
             isLoading = false
             errorMessage = "Sign out failed: \(error.localizedDescription)"
+            print("   ❌ Logout failed: \(error)")
             throw error
         }
     }

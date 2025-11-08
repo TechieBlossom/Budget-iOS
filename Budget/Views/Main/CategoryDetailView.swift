@@ -201,33 +201,10 @@ struct CategoryDetailView: View {
                 budgetName: budgetManager.budget.budgetName,
                 categoryAmounts: budgetManager.budget.categoryAmounts,
                 existingTransaction: tx,
-                onSaveTransaction: { updatedTx in
-                    if budgetManager.updateTransaction(updatedTx) {
-                        HapticManager.shared.success()
-                        notificationManager.showSuccess("Transaction updated successfully!")
-                    } else {
-                        HapticManager.shared.operationFailed()
-                        notificationManager.showError("Failed to update transaction")
-                    }
-                    transactionToEdit = nil
-                },
-                onUpdateBudget: nil,
-                onDeleteTransaction: { txToDelete in
-                    if budgetManager.deleteTransaction(txToDelete) {
-                        HapticManager.shared.transactionDeleted()
-                        notificationManager.showUndo("Transaction deleted") {
-                            if budgetManager.undoLastTransaction() {
-                                HapticManager.shared.transactionRestored()
-                                notificationManager.showSuccess("Transaction restored!")
-                            } else {
-                                HapticManager.shared.operationFailed()
-                                notificationManager.showError("Failed to restore transaction")
-                            }
-                        }
-                    } else {
-                        HapticManager.shared.operationFailed()
-                        notificationManager.showError("Failed to delete transaction")
-                    }
+                budgetManager: budgetManager,
+                onSuccess: {
+                    HapticManager.shared.success()
+                    notificationManager.showSuccess("Transaction updated successfully!")
                     transactionToEdit = nil
                 }
             )

@@ -6,17 +6,20 @@ struct BudgetExpiredView: View {
     let isManualEnd: Bool
     let onContinueWithSameSettings: () -> Void
     let onChangeBudgetSettings: () -> Void
+    let onViewExpiredBudget: (() -> Void)?
     let onCancel: (() -> Void)?
 
     init(budgetManager: any BudgetManagerProtocol,
          isManualEnd: Bool = false,
          onContinueWithSameSettings: @escaping () -> Void,
          onChangeBudgetSettings: @escaping () -> Void,
+         onViewExpiredBudget: (() -> Void)? = nil,
          onCancel: (() -> Void)? = nil) {
         self.budgetManager = budgetManager
         self.isManualEnd = isManualEnd
         self.onContinueWithSameSettings = onContinueWithSameSettings
         self.onChangeBudgetSettings = onChangeBudgetSettings
+        self.onViewExpiredBudget = onViewExpiredBudget
         self.onCancel = onCancel
     }
 
@@ -110,6 +113,15 @@ struct BudgetExpiredView: View {
                         fullWidth: true,
                         action: onChangeBudgetSettings
                     )
+
+                    // View Expired Budget option (only for natural expiration, not manual end)
+                    if !isManualEnd, let onViewExpiredBudget = onViewExpiredBudget {
+                        Button(action: onViewExpiredBudget) {
+                            DSText("View Expired Budget (Read-Only)", font: .dsBody, color: theme.colors.textSecondary)
+                                .underline()
+                        }
+                        .padding(.top, DSSpacing.xs)
+                    }
 
                     // Cancel option (only for manual end)
                     if isManualEnd, let onCancel = onCancel {

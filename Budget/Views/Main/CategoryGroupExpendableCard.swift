@@ -6,6 +6,7 @@ struct CategoryGroupExpendableCard: View {
     let isExpanded: Bool
     let onToggle: () -> Void
     let onSubCategoryTap: ((SubCategory) -> Void)?
+    let onAddCategory: ((CategoryGroup) -> Void)?
 
     @Environment(\.appTheme) private var theme
 
@@ -97,10 +98,29 @@ struct CategoryGroupExpendableCard: View {
                     let subCategories = budgetManager.subCategories(for: group)
 
                     if subCategories.isEmpty {
-                        VStack(spacing: DSSpacing.xs) {
-                            DSText("No sub-categories", font: .dsBody, color: theme.colors.textSecondary)
-                                .padding(.vertical, DSSpacing.xl)
+                        // Show "Add Category" button for empty groups
+                        Button(action: {
+                            HapticManager.shared.buttonTap()
+                            onAddCategory?(group)
+                        }) {
+                            HStack(spacing: DSSpacing.sm) {
+                                Image(systemName: "plus.circle")
+                                    .font(.dsBody)
+                                    .foregroundColor(group.color)
+
+                                DSText("Add Category", font: .dsBody, color: group.color)
+                                    .fontWeight(.medium)
+                            }
+                            .padding(.vertical, DSSpacing.lg)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(group.color, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+                            )
+                            .padding(.horizontal, DSSpacing.xl)
+                            .padding(.vertical, DSSpacing.md)
                         }
+                        .buttonStyle(PlainButtonStyle())
                         .frame(maxWidth: .infinity)
                         .background(theme.colors.surface)
                     } else {
@@ -221,7 +241,10 @@ struct SubCategoryAggregateRow: View {
             budgetManager: budgetManager,
             isExpanded: false,
             onToggle: {},
-            onSubCategoryTap: nil
+            onSubCategoryTap: nil,
+            onAddCategory: { group in
+                print("Add category to group: \(group.displayName)")
+            }
         )
 
         CategoryGroupExpendableCard(
@@ -231,6 +254,9 @@ struct SubCategoryAggregateRow: View {
             onToggle: {},
             onSubCategoryTap: { subCategory in
                 print("Tapped sub-category: \(subCategory.name)")
+            },
+            onAddCategory: { group in
+                print("Add category to group: \(group.displayName)")
             }
         )
     }

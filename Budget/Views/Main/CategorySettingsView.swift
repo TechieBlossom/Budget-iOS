@@ -15,6 +15,7 @@ struct CategorySettingsView: View {
     @State private var subCategoryToDelete: SubCategory?
     @State private var editingSubCategory: SubCategory?
     @State private var editingCategoryAmount: Double = 0
+    @State private var refreshTrigger = 0
 
     init(currentBudget: Budget, budgetManager: any BudgetManagerProtocol, onUpdateBudget: @escaping (Budget) -> Void) {
         self.currentBudget = currentBudget
@@ -81,6 +82,7 @@ struct CategorySettingsView: View {
                     toggleCategoryType(for: subCategory)
                 }
             )
+            .id(refreshTrigger)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -147,13 +149,37 @@ struct CategorySettingsView: View {
     // MARK: - Helper Methods
 
     private func removeSubCategory(_ subCategory: SubCategory) {
-        // Delete all transactions associated with this sub-category
-        _ = budgetManager.deleteAllTransactions(for: subCategory)
+        print("🗑️ CategorySettingsView: Deleting category \(subCategory.name)...")
 
-        // Remove the sub-category from the budget
-        subCategories.removeAll { $0.id == subCategory.id }
-        categoryAmounts.removeValue(forKey: subCategory.id.uuidString)
-        updateTotalBudgetAmount()
+        Task {
+            guard let manager = budgetManager as? BudgetManager else {
+                // Fallback for MockBudgetManager - just update locally
+                await MainActor.run {
+                    _ = budgetManager.deleteAllTransactions(for: subCategory)
+                    subCategories.removeAll { $0.id == subCategory.id }
+                    categoryAmounts.removeValue(forKey: subCategory.id.uuidString)
+                    updateTotalBudgetAmount()
+                }
+                return
+            }
+
+            // Use the new async deleteCategory method
+            let success = await manager.deleteCategory(subCategory.id)
+
+            await MainActor.run {
+                if success {
+                    print("   ✅ Category deleted successfully")
+                    // Reload the budget data from manager to reflect changes
+                    reloadBudgetData()
+                } else {
+                    print("   ❌ Failed to delete category")
+                    // Show error to user
+                    if let error = manager.lastError {
+                        print("   Error: \(error)")
+                    }
+                }
+            }
+        }
     }
 
     private func toggleCategoryType(for subCategory: SubCategory) {
@@ -181,10 +207,17 @@ struct CategorySettingsView: View {
     private func reloadBudgetData() {
         print("🔄 Reloading budget data from budgetManager...")
         let freshBudget = budgetManager.budget
+        print("   Fresh budget has \(freshBudget.categories.count) categories")
+        print("   Fresh categoryAmounts: \(freshBudget.categoryAmounts)")
         subCategories = freshBudget.categories
         categoryAmounts = freshBudget.categoryAmounts
         updateTotalBudgetAmount()
-        print("   ✅ UI refreshed with latest data")
+
+        // Force view refresh by toggling the trigger
+        refreshTrigger += 1
+
+        print("   ✅ UI refreshed with latest data (trigger: \(refreshTrigger))")
+        print("   Local categoryAmounts now: \(categoryAmounts)")
     }
 
     private func saveCategoryChanges() {
@@ -219,10 +252,28 @@ struct CategorySettingsView: View {
             categoryAmounts: categoryAmounts
         )
 
-        print("   ➡️ Calling onUpdateBudget...")
-        onUpdateBudget(updatedBudget)
-        print("   ✅ Category changes saved, dismissing sheet")
-        dismiss()
+        print("   ➡️ Saving via async updateBudget...")
+        Task {
+            guard let manager = budgetManager as? BudgetManager else {
+                // Fallback for MockBudgetManager in previews
+                onUpdateBudget(updatedBudget)
+                dismiss()
+                return
+            }
+
+            let success = await manager.updateBudget(updatedBudget)
+            await MainActor.run {
+                if success {
+                    print("   ✅ Category changes saved successfully")
+                    dismiss()
+                } else {
+                    print("   ❌ Failed to save category changes")
+                    if let error = manager.lastError {
+                        print("   Error: \(error)")
+                    }
+                }
+            }
+        }
     }
 }
 

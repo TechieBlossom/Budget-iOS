@@ -286,7 +286,7 @@ struct SyncSection: View {
 
     private var lastSyncText: String {
         switch budgetManager.syncState {
-        case .success(let date):
+        case .synced(let date):
             let formatter = RelativeDateTimeFormatter()
             formatter.unitsStyle = .full
             return "Last synced \(formatter.localizedString(for: date, relativeTo: Date()))"
@@ -296,8 +296,6 @@ struct SyncSection: View {
             return "Offline"
         case .syncing:
             return "Syncing..."
-        case .idle:
-            return "Not yet synced"
         }
     }
 
@@ -320,23 +318,11 @@ struct SyncSection: View {
                 DSButton("Sync Now", style: .outline) {
                     Task {
                         isSyncing = true
-                        await budgetManager.syncActiveBudget()
+                        await budgetManager.refreshFromSupabase()
                         isSyncing = false
                     }
                 }
                 .disabled(isSyncing || budgetManager.syncState == .syncing)
-
-                #if DEBUG
-                // Debug: Reset and sync button
-                DSButton("Reset & Re-sync (Debug)", style: .outline) {
-                    Task {
-                        isSyncing = true
-                        await budgetManager.resetAndSync()
-                        isSyncing = false
-                    }
-                }
-                .disabled(isSyncing || budgetManager.syncState == .syncing)
-                #endif
             }
             .padding(.horizontal, DSSpacing.sm)
             .padding(.vertical, DSSpacing.sm)

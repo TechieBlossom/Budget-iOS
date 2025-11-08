@@ -9,29 +9,32 @@ struct EditTransactionSheet: View {
     let currency: Currency
     let budgetPeriod: BudgetPeriod
     let budgetName: String
-    let onUpdateTransaction: (Transaction) -> Void
-    let onDeleteTransaction: ((Transaction) -> Void)?
-    
+    let budgetManager: any BudgetManagerProtocol
+    let onSuccess: () -> Void
+
     @State private var name: String
     @State private var amount: String
     @State private var notes: String
     @State private var selectedCategory: SubCategory?
     @State private var selectedDate: Date
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @State private var showingDeleteConfirmation = false
     
-    init(transaction: Transaction, categories: [SubCategory], currency: Currency, budgetPeriod: BudgetPeriod, budgetName: String, onUpdateTransaction: @escaping (Transaction) -> Void, onDeleteTransaction: ((Transaction) -> Void)? = nil) {
+    init(transaction: Transaction, categories: [SubCategory], currency: Currency, budgetPeriod: BudgetPeriod, budgetName: String, budgetManager: any BudgetManagerProtocol, onSuccess: @escaping () -> Void) {
         self.transaction = transaction
         self.categories = categories
         self.currency = currency
         self.budgetPeriod = budgetPeriod
         self.budgetName = budgetName
-        self.onUpdateTransaction = onUpdateTransaction
-        self.onDeleteTransaction = onDeleteTransaction
-        
+        self.budgetManager = budgetManager
+        self.onSuccess = onSuccess
+
         // Initialize state with existing transaction data
         // Try to parse existing notes into name and notes if they contain a separator
         let existingNotes = transaction.notes
         let (parsedName, parsedNotes) = EditTransactionSheet.parseTransactionNotes(existingNotes)
-        
+
         self._name = State(initialValue: parsedName)
         self._amount = State(initialValue: transaction.formattedAmount)
         self._notes = State(initialValue: parsedNotes)
@@ -40,30 +43,35 @@ struct EditTransactionSheet: View {
     }
     
     var body: some View {
-        return VStack(spacing: 0) {
-            DSHeader(
-                title: "Edit Expense",
-                subtitle: budgetName,
-                onBack: {
-                    dismiss()
-                }
-            )
-                
+        return ZStack {
+            VStack(spacing: 0) {
+                DSHeader(
+                    title: "Edit Expense",
+                    subtitle: budgetName,
+                    onBack: {
+                        if !isSaving {
+                            dismiss()
+                        }
+                    }
+                )
+
                 ScrollView {
                     VStack(spacing: DSSpacing.xl) {
                         // Date Section
                         HorizontalDatePicker(selectedDate: $selectedDate, budgetPeriod: budgetPeriod)
-                        
+
                         // Name Section
                         VStack(alignment: .leading, spacing: DSSpacing.xs) {
                             DSText("Expense Name", font: .dsBody, color: theme.colors.textPrimary)
                             DSTextField("e.g., Coffee, Groceries, Gas", text: $name, autocapitalization: .words)
+                                .disabled(isSaving)
                         }.padding(.horizontal, DSSpacing.md)
-                        
+
                         // Amount Section
                         VStack(alignment: .leading, spacing: DSSpacing.xs) {
                             DSText("Amount", font: .dsBody, color: theme.colors.textPrimary)
                             DSTextField("Enter amount (e.g., 25.50)", text: $amount, keyboardType: .decimalPad)
+                                .disabled(isSaving)
                         }.padding(.horizontal, DSSpacing.md)
                         
                         // Category Section
@@ -86,54 +94,80 @@ struct EditTransactionSheet: View {
                         // Notes Section
                         VStack(alignment: .leading, spacing: DSSpacing.xs) {
                             DSText("Notes (Optional)", font: .dsBody, color: theme.colors.textPrimary)
-                            
+
                             DSTextField("e.g., Lunch with colleagues, Receipt #1234", text: $notes, autocapitalization: .words)
+                                .disabled(isSaving)
                         }.padding(.horizontal, DSSpacing.md)
-                        
+
+                        // Error Message
+                        if let errorMessage = errorMessage {
+                            DSText(errorMessage, font: .dsCaption, color: .red)
+                                .padding(.horizontal, DSSpacing.md)
+                        }
+
                         // Bottom spacing for sticky buttons
                         Rectangle()
                             .fill(Color.clear)
                             .frame(height: 20)
                     }
                 }
-                
+                .scrollDismissesKeyboard(.interactively)
+
                 // Sticky bottom buttons
                 VStack(spacing: 0) {
                     Divider()
                         .background(theme.colors.divider)
 
-                    if onDeleteTransaction != nil {
-                        // Two button layout when delete is available
-                        HStack(spacing: DSSpacing.sm) {
-                            DSButton("Delete", style: .outline) {
-                                deleteTransaction()
+                    // Two button layout
+                    HStack(spacing: DSSpacing.sm) {
+                        DSButton("Delete", style: .outline) {
+                            if !isSaving {
+                                showingDeleteConfirmation = true
                             }
+                        }
+                        .disabled(isSaving)
 
-                            DSButton("Update", style: .primary) {
+                        DSButton("Update", style: .primary) {
+                            if !isSaving {
                                 updateTransaction()
                             }
-                            .disabled(!isFormValid)
-                            .opacity(isFormValid ? 1.0 : 0.6)
                         }
-                        .padding(.vertical, DSSpacing.md)
-                        .padding(.horizontal, DSSpacing.md)
-                        .background(theme.colors.background)
-                    } else {
-                        // Single button layout when delete is not available
-                        DSButton("Update", style: .primary, fullWidth: true) {
-                            updateTransaction()
-                        }
-                        .disabled(!isFormValid)
-                        .opacity(isFormValid ? 1.0 : 0.6)
-                        .padding(.vertical, DSSpacing.md)
-                        .padding(.horizontal, DSSpacing.md)
-                        .background(theme.colors.background)
+                        .disabled(!isFormValid || isSaving)
+                        .opacity(isFormValid && !isSaving ? 1.0 : 0.6)
                     }
+                    .padding(.vertical, DSSpacing.md)
+                    .padding(.horizontal, DSSpacing.md)
+                    .background(theme.colors.background)
                 }
+            }
+            .background(theme.colors.background)
+
+            // Loading Overlay
+            if isSaving {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+
+                VStack(spacing: DSSpacing.md) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .tint(theme.colors.primary)
+                    DSText("Saving...", font: .dsBody, color: theme.colors.textPrimary)
+                }
+                .padding(DSSpacing.xl)
+                .background(theme.colors.surface)
+                .cornerRadius(12)
+            }
         }
-        .background(theme.colors.background)
         .navigationBarBackButtonHidden(true)
-            .enableSwipeBack()
+        .enableSwipeBack()
+        .alert("Delete Transaction", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                deleteTransaction()
+            }
+        } message: {
+            Text("Are you sure you want to delete this transaction? This action cannot be undone.")
+        }
     }
     
     private var isFormValid: Bool {
@@ -148,7 +182,7 @@ struct EditTransactionSheet: View {
         guard let category = selectedCategory,
               let amountValue = Double(amount),
               amountValue > 0 else { return }
-        
+
         // Combine name and notes appropriately
         let finalNotes: String
         if !name.isEmpty && !notes.isEmpty {
@@ -160,22 +194,97 @@ struct EditTransactionSheet: View {
         } else {
             finalNotes = "" // Will show as "Expense" in the UI
         }
-        
+
         let updatedTransaction = Transaction(
             id: transaction.id,  // Keep the same ID
             amount: amountValue,
             notes: finalNotes,
             date: selectedDate,
-            categoryId: category.id
+            categoryId: category.id,
+            budgetId: transaction.budgetId  // Preserve existing budgetId
         )
-        
-        onUpdateTransaction(updatedTransaction)
-        dismiss()
+
+        isSaving = true
+        errorMessage = nil
+
+        Task {
+            print("📝 EditTransactionSheet: Updating transaction...")
+
+            let success: Bool
+            if let manager = budgetManager as? BudgetManager {
+                success = await manager.updateTransaction(updatedTransaction)
+            } else {
+                success = budgetManager.updateTransaction(updatedTransaction)
+            }
+
+            if !success {
+                print("   ❌ Update failed")
+                isSaving = false
+                if let manager = budgetManager as? BudgetManager {
+                    errorMessage = manager.lastError ?? "Failed to update transaction"
+                    print("   Error: \(manager.lastError ?? "unknown")")
+                } else {
+                    errorMessage = "Failed to update transaction"
+                }
+                return
+            }
+
+            print("   ✅ Update succeeded")
+
+            // Force a refresh to ensure UI has latest data
+            if let manager = budgetManager as? BudgetManager {
+                print("   🔄 Forcing refresh from Supabase to sync UI...")
+                await manager.refreshFromSupabase()
+                print("   ✅ Refresh complete")
+            }
+
+            print("   ✅ Dismissing sheet")
+            isSaving = false
+            onSuccess()
+            dismiss()
+        }
     }
 
     private func deleteTransaction() {
-        onDeleteTransaction?(transaction)
-        dismiss()
+        isSaving = true
+        errorMessage = nil
+
+        Task {
+            print("🗑️ EditTransactionSheet: Deleting transaction...")
+
+            let success: Bool
+            if let manager = budgetManager as? BudgetManager {
+                success = await manager.deleteTransaction(transaction)
+            } else {
+                success = budgetManager.deleteTransaction(transaction)
+            }
+
+            if !success {
+                print("   ❌ Delete failed")
+                isSaving = false
+                if let manager = budgetManager as? BudgetManager {
+                    errorMessage = manager.lastError ?? "Failed to delete transaction"
+                    print("   Error: \(manager.lastError ?? "unknown")")
+                } else {
+                    errorMessage = "Failed to delete transaction"
+                }
+                return
+            }
+
+            print("   ✅ Delete succeeded")
+
+            // Force a refresh to ensure UI has latest data
+            if let manager = budgetManager as? BudgetManager {
+                print("   🔄 Forcing refresh from Supabase to sync UI...")
+                await manager.refreshFromSupabase()
+                print("   ✅ Refresh complete")
+            }
+
+            print("   ✅ Dismissing sheet")
+            isSaving = false
+            onSuccess()
+            dismiss()
+        }
     }
     
     // Helper method to parse existing transaction notes into name and notes

@@ -1,228 +1,589 @@
+//
+//  BudgetManager.swift (REFACTORED)
+//  Budget
+//
+//  Refactored to use Supabase as single source of truth
+//  Local DB is cache for offline read access only
+//
+
 import Foundation
 import SwiftData
 
 @MainActor
 @Observable
 class BudgetManager: BudgetManagerProtocol {
+    // MARK: - Dependencies
     private let databaseService: DatabaseServiceProtocol
+    private let supabaseService: SupabaseService
+    private let authManager: AuthManager?
+    private let networkMonitor = NetworkMonitor()
+
+    // MARK: - State
     var currentBudget: Budget?
     var transactions: [Transaction] = []
+    var isLoading: Bool = false
+    var lastError: String? = nil
+    var syncState: SyncState = .offline
     private var lastDeletedTransaction: Transaction?
 
-    // Sync properties
-    var syncState: SyncState = .idle
-    private var syncManager: SupabaseSyncManager?
-    private let networkMonitor = NetworkMonitor()
-    private var authManager: AuthManager?
-
-    /// Whether an active budget exists
+    // MARK: - Computed Properties
     var hasActiveBudget: Bool {
         currentBudget != nil
     }
 
-    init(modelContext: ModelContext, authManager: AuthManager? = nil, syncManager: SupabaseSyncManager? = nil) {
+    // MARK: - Initialization
+    init(modelContext: ModelContext, authManager: AuthManager? = nil) {
         self.authManager = authManager
         self.databaseService = DatabaseService(modelContext: modelContext, authManager: authManager)
-        self.syncManager = syncManager ?? SupabaseSyncManager(modelContext: modelContext)
+        self.supabaseService = SupabaseService()
 
-        // Load active budget from local DB first (instant)
-        loadCurrentBudget()
+        // Load from cache immediately (optimistic UI)
+        loadFromCache()
 
-        // Sync state from sync manager
-        updateSyncState()
-
-        // Then sync in background if authenticated
+        // Set initial sync state based on authentication and network
         if authManager?.isAuthenticated == true {
-            Task {
-                await syncActiveBudget()
+            if networkMonitor.isConnected {
+                syncState = .syncing
+            } else {
+                syncState = .offline
             }
+
+            // Then sync in background
+            Task {
+                await refreshFromSupabase()
+            }
+        } else {
+            syncState = .offline
         }
     }
-    
-    // MARK: - Budget Operations
 
-    func createBudget(_ budget: Budget) -> Bool {
-        let success = databaseService.createBudget(budget)
-        if success {
-            currentBudget = budget
-            loadTransactions()
+    // MARK: - Optimistic UI Load Pattern
 
-            // Trigger sync if online
-            triggerSync()
-        }
-        return success
-    }
-    
-    func loadCurrentBudget() {
+    /// Load data from local cache immediately (instant UI)
+    private func loadFromCache() {
         let budgets = databaseService.fetchBudgets()
-        // Load the most recent budget (don't auto-create sample for fresh installs)
         currentBudget = budgets.sorted { $0.period.startDate > $1.period.startDate }.first
 
-        if currentBudget != nil {
-            loadTransactions()
+        if let budgetId = currentBudget?.id {
+            transactions = databaseService.fetchTransactions(for: budgetId)
         }
     }
-    
-    func hasExistingBudgets() -> Bool {
-        return !databaseService.fetchBudgets().isEmpty
-    }
-    
-    func updateBudget(_ budget: Budget) -> Bool {
-        print("🔄 BudgetManager: Updating budget \(budget.id)")
-        let success = databaseService.updateBudget(budget)
-        if success {
-            print("   ✅ Database update successful")
-            currentBudget = budget
 
-            // Trigger sync if online
-            print("   🌐 Triggering sync...")
-            triggerSync()
-        } else {
-            print("   ❌ Database update failed")
-        }
-        return success
-    }
-    
-    func deleteBudget(_ budgetId: UUID) -> Bool {
-        let success = databaseService.deleteBudget(by: budgetId)
-        if success && currentBudget?.id == budgetId {
-            currentBudget = nil
-            transactions = []
-
-            // Trigger sync if online
-            triggerSync()
-        }
-        return success
-    }
-    
-    func getAllBudgets() -> [Budget] {
-        return databaseService.fetchBudgets()
-    }
-    
-    // MARK: - Transaction Operations
-    
-    private func loadTransactions() {
-        guard let budgetId = currentBudget?.id else {
-            transactions = []
+    /// Refresh data from Supabase in background
+    func refreshFromSupabase() async {
+        guard let userId = authManager?.currentUser?.id else {
+            syncState = .offline
             return
         }
-        transactions = databaseService.fetchTransactions(for: budgetId)
+
+        guard networkMonitor.isConnected else {
+            syncState = .offline
+            return
+        }
+
+        syncState = .syncing
+
+        do {
+            // STEP 1: Fetch from Supabase (source of truth)
+            guard let supabaseBudget = try await supabaseService.fetchActiveBudget(userId: userId) else {
+                syncState = .synced(Date())
+                return
+            }
+
+            let categories = try await supabaseService.fetchCategories(budgetId: supabaseBudget.id)
+            let transactions = try await supabaseService.fetchTransactions(categoryIds: categories.map { $0.id })
+
+            // STEP 2: Intelligently sync local cache (DON'T clear everything!)
+            let budget = supabaseBudget.toBudget(categories: categories)
+
+            // Sync budget: update if exists, create if new
+            if databaseService.fetchBudget(by: budget.id) != nil {
+                _ = databaseService.updateBudget(budget)
+            } else {
+                _ = databaseService.createBudget(budget)
+            }
+
+            // Sync transactions: compare and update only what changed
+            let localTransactions = databaseService.fetchTransactions(for: budget.id)
+            let localTransactionIds = Set(localTransactions.map { $0.id })
+            let remoteTransactionIds = Set(transactions.map { $0.id })
+
+            // Delete transactions that no longer exist in Supabase
+            for localTx in localTransactions {
+                if !remoteTransactionIds.contains(localTx.id) {
+                    _ = databaseService.deleteTransaction(by: localTx.id)
+                }
+            }
+
+            // Update existing or create new transactions
+            for remoteTx in transactions {
+                let transaction = remoteTx.toTransaction()
+                if localTransactionIds.contains(transaction.id) {
+                    _ = databaseService.updateTransaction(transaction)
+                } else {
+                    _ = databaseService.createTransaction(transaction, budgetId: budget.id)
+                }
+            }
+
+            // STEP 3: Update in-memory state (UI updates automatically via @Observable)
+            currentBudget = budget
+            self.transactions = transactions.map { $0.toTransaction() }
+
+            // STEP 4: Update sync state
+            syncState = .synced(Date())
+
+        } catch {
+            lastError = "Failed to refresh: \(error.localizedDescription)"
+            if !networkMonitor.isConnected {
+                syncState = .offline
+            } else {
+                syncState = .error(error.localizedDescription)
+            }
+        }
     }
-    
-    func addTransaction(_ transaction: Transaction, to budgetId: UUID? = nil) -> Bool {
-        let targetBudgetId: UUID
-        let targetBudget: Budget?
 
-        if let budgetId = budgetId {
-            targetBudgetId = budgetId
-            targetBudget = databaseService.fetchBudget(by: budgetId)
-        } else if let currentBudget = currentBudget {
-            targetBudgetId = currentBudget.id
-            targetBudget = currentBudget
-        } else {
-            // Try to find appropriate budget for transaction date
-            guard let appropriateBudget = databaseService.findBudget(for: transaction.date) else {
-                return false
-            }
-            targetBudgetId = appropriateBudget.id
-            targetBudget = appropriateBudget
+    // MARK: - Budget Operations
+
+    /// Create a new budget (async write to Supabase)
+    func createBudget(_ budget: Budget) async -> Bool {
+        guard let userId = authManager?.currentUser?.id else {
+            lastError = "Not authenticated"
+            return false
         }
 
-        // Validate transaction date is within budget period
-        if let budget = targetBudget {
-            guard transaction.date >= budget.period.startDate &&
-                  transaction.date <= budget.period.endDate else {
-                print("❌ Transaction date must be within budget period (\(budget.period.startDate) - \(budget.period.endDate))")
-                return false
-            }
+        guard networkMonitor.isConnected else {
+            lastError = "No internet connection"
+            return false
         }
 
-        let success = databaseService.createTransaction(transaction, budgetId: targetBudgetId)
-        if success {
-            if targetBudgetId == currentBudget?.id {
-                transactions.append(transaction)
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            // STEP 1: Write to Supabase
+            _ = try await supabaseService.createBudget(budget, userId: userId)
+
+            // STEP 2: Create categories in Supabase
+            for category in budget.categories {
+                let amount = budget.categoryAmounts[category.id.uuidString] ?? 0
+                let supabaseCategory = SupabaseCategory.from(category, budgetId: budget.id, amount: amount)
+                _ = try await supabaseService.createCategory(supabaseCategory)
             }
 
-            // Trigger sync if online
-            triggerSync()
+            // STEP 3: Read back from Supabase to get server state
+            guard let freshBudget = try await supabaseService.fetchActiveBudget(userId: userId) else {
+                throw BudgetError.supabaseFailed("Failed to read created budget")
+            }
+            let freshCategories = try await supabaseService.fetchCategories(budgetId: freshBudget.id)
+
+            // STEP 4: Update local cache
+            let cachedBudget = freshBudget.toBudget(categories: freshCategories)
+            _ = databaseService.createBudget(cachedBudget)
+
+            // STEP 5: Update in-memory state
+            currentBudget = cachedBudget
+            transactions = []
+
+            return true
+        } catch {
+            lastError = "Failed to create budget: \(error.localizedDescription)"
+            return false
         }
-        return success
     }
-    
+
+    /// Synchronous version for compatibility (shows error immediately)
+    func createBudget(_ budget: Budget) -> Bool {
+        guard networkMonitor.isConnected else {
+            lastError = "No internet connection. Please try again when online."
+            return false
+        }
+
+        // Use Task to run async in sync context
+        var result = false
+        let semaphore = DispatchSemaphore(value: 0)
+
+        Task {
+            result = await createBudget(budget)
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+        return result
+    }
+
+    func updateBudget(_ budget: Budget) async -> Bool {
+        print("🔄 BudgetManager.updateBudget called")
+
+        guard let userId = authManager?.currentUser?.id else {
+            lastError = "Not authenticated"
+            print("   ❌ Not authenticated")
+            return false
+        }
+
+        guard networkMonitor.isConnected else {
+            lastError = "No internet connection"
+            print("   ❌ No internet connection")
+            return false
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            // STEP 1: Write to Supabase
+            print("   📤 Step 1: Updating budget in Supabase...")
+            _ = try await supabaseService.updateBudget(budget, userId: userId)
+            print("   ✅ Budget updated in Supabase")
+
+            // STEP 2: Sync only changed categories to Supabase
+            let oldCategories = currentBudget?.categories ?? []
+            let oldAmounts = currentBudget?.categoryAmounts ?? [:]
+
+            var categoriesToUpdate: [(category: SubCategory, isNew: Bool)] = []
+            for category in budget.categories {
+                let newAmount = budget.categoryAmounts[category.id.uuidString] ?? 0
+                let oldAmount = oldAmounts[category.id.uuidString] ?? 0
+
+                // Check if category changed
+                if let oldCategory = oldCategories.first(where: { $0.id == category.id }) {
+                    // Category exists - check if it changed
+                    if oldCategory.name != category.name ||
+                       oldCategory.categoryGroup != category.categoryGroup ||
+                       oldCategory.categoryType != category.categoryType ||
+                       oldAmount != newAmount {
+                        categoriesToUpdate.append((category, false))
+                    }
+                } else {
+                    // New category - needs to be created
+                    categoriesToUpdate.append((category, true))
+                }
+            }
+
+            var hasNewCategories = false
+            if !categoriesToUpdate.isEmpty {
+                print("   📤 Step 2: Syncing \(categoriesToUpdate.count) changed categories to Supabase...")
+                for (category, isNew) in categoriesToUpdate {
+                    let amount = budget.categoryAmounts[category.id.uuidString] ?? 0
+                    let supabaseCategory = SupabaseCategory.from(category, budgetId: budget.id, amount: amount)
+
+                    if isNew {
+                        print("      ➕ Creating category: \(category.name)")
+                        _ = try await supabaseService.createCategory(supabaseCategory)
+                        hasNewCategories = true
+                    } else {
+                        print("      ✏️ Updating category: \(category.name)")
+                        _ = try await supabaseService.updateCategory(supabaseCategory)
+                    }
+                }
+                print("   ✅ Synced \(categoriesToUpdate.count) categories to Supabase")
+            } else {
+                print("   ✅ Step 2: No category changes detected, skipping sync")
+            }
+
+            // STEP 3: Update local cache directly (no fetch needed for simple updates!)
+            print("   💾 Step 3: Updating local cache...")
+            print("   Budget being saved has categoryAmounts: \(budget.categoryAmounts)")
+            _ = databaseService.updateBudget(budget)
+            print("   ✅ Local cache updated")
+
+            // STEP 4: Update in-memory state
+            currentBudget = budget
+            print("   ✅ In-memory state updated")
+            print("   currentBudget.categoryAmounts is now: \(currentBudget?.categoryAmounts ?? [:])")
+            print("🎉 BudgetManager.updateBudget completed successfully (optimized - no fetch!)")
+
+            return true
+        } catch {
+            lastError = "Failed to update budget: \(error.localizedDescription)"
+            print("   ❌ Error: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    func updateBudget(_ budget: Budget) -> Bool {
+        print("🔄 BudgetManager.updateBudget (sync) called")
+
+        guard networkMonitor.isConnected else {
+            lastError = "No internet connection. Please try again when online."
+            print("   ❌ No internet connection")
+            return false
+        }
+
+        print("   ⏳ Waiting for async updateBudget to complete...")
+        var result = false
+        let semaphore = DispatchSemaphore(value: 0)
+
+        Task {
+            result = await updateBudget(budget)
+            print("   ⏳ Async updateBudget returned: \(result)")
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+        print("   ✅ Sync updateBudget returning: \(result)")
+        return result
+    }
+
+    // MARK: - Category Operations
+
+    func deleteCategory(_ categoryId: UUID) async -> Bool {
+        guard networkMonitor.isConnected else {
+            lastError = "No internet connection"
+            return false
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            // STEP 1: Delete category from Supabase
+            try await supabaseService.deleteCategory(categoryId)
+
+            // STEP 2: Delete associated transactions from Supabase
+            let categoryTransactions = transactions.filter { $0.categoryId == categoryId }
+            for tx in categoryTransactions {
+                try await supabaseService.deleteTransaction(tx.id)
+            }
+
+            // STEP 3: Update local cache
+            for tx in categoryTransactions {
+                _ = databaseService.deleteTransaction(by: tx.id)
+            }
+            // Note: Category will be removed from cache when budget is updated
+
+            // STEP 4: Update in-memory state
+            transactions.removeAll { $0.categoryId == categoryId }
+            if let budget = currentBudget {
+                let newCategories = budget.categories.filter { $0.id != categoryId }
+                var newAmounts = budget.categoryAmounts
+                newAmounts.removeValue(forKey: categoryId.uuidString)
+
+                let updatedBudget = Budget(
+                    id: budget.id,
+                    period: budget.period,
+                    currency: budget.currency,
+                    categories: newCategories,
+                    categoryAmounts: newAmounts
+                )
+
+                currentBudget = updatedBudget
+
+                // Update cache with new budget state
+                _ = databaseService.updateBudget(updatedBudget)
+            }
+
+            return true
+        } catch {
+            lastError = "Failed to delete category: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    // MARK: - Transaction Operations
+
+    func addTransaction(_ transaction: Transaction) async -> Bool {
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            let targetBudgetId = currentBudget?.id
+            guard let targetBudgetId = targetBudgetId else { return false }
+
+            // Find category group
+            let categoryGroup = currentBudget?.categories.first(where: { $0.id == transaction.categoryId })?.categoryGroup.rawValue ?? "Miscellaneous"
+
+            // STEP 1: Create in Supabase
+            let supabaseTransaction = SupabaseTransaction.from(transaction, categoryGroup: categoryGroup)
+            _ = try await supabaseService.createTransaction(supabaseTransaction)
+
+            // STEP 2: Read back to get server state
+            let categoryIds = currentBudget?.categories.map { $0.id } ?? []
+            let freshTransactions = try await supabaseService.fetchTransactions(categoryIds: categoryIds)
+            guard freshTransactions.contains(where: { $0.id == transaction.id }) else {
+                throw BudgetError.supabaseFailed("Transaction not found after creation")
+            }
+
+            // STEP 3: Update local cache
+            _ = databaseService.createTransaction(transaction, budgetId: targetBudgetId)
+
+            // STEP 4: Update in-memory state
+            transactions.append(transaction)
+
+            return true
+        } catch {
+            lastError = "Failed to add transaction: \(error.localizedDescription)"
+            return false
+        }
+    }
+
     func addTransaction(_ transaction: Transaction) -> Bool {
-        return addTransaction(transaction, to: nil)
-    }
-    
-    func updateTransaction(_ transaction: Transaction) -> Bool {
-        // Validate transaction date is within budget period if current budget
-        if let currentBudget = currentBudget {
-            guard transaction.date >= currentBudget.period.startDate &&
-                  transaction.date <= currentBudget.period.endDate else {
-                print("❌ Transaction date must be within budget period (\(currentBudget.period.startDate) - \(currentBudget.period.endDate))")
-                return false
-            }
+        guard networkMonitor.isConnected else {
+            lastError = "No internet connection. Please try again when online."
+            return false
         }
 
-        let success = databaseService.updateTransaction(transaction)
-        if success {
+        var result = false
+        let semaphore = DispatchSemaphore(value: 0)
+
+        Task {
+            result = await addTransaction(transaction)
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+        return result
+    }
+
+    func updateTransaction(_ transaction: Transaction) async -> Bool {
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            // STEP 1: Convert to Supabase format
+            let categoryGroup = currentBudget?.categories.first(where: { $0.id == transaction.categoryId })?.categoryGroup.rawValue ?? "Miscellaneous"
+            let supabaseTransaction = SupabaseTransaction.from(transaction, categoryGroup: categoryGroup)
+
+            // STEP 2: Update in Supabase
+            _ = try await supabaseService.updateTransaction(supabaseTransaction)
+
+            // STEP 3: Read back to get server state
+            let categoryIds = currentBudget?.categories.map { $0.id } ?? []
+            let freshTransactions = try await supabaseService.fetchTransactions(categoryIds: categoryIds)
+            guard freshTransactions.contains(where: { $0.id == transaction.id }) else {
+                throw BudgetError.supabaseFailed("Transaction not found after update")
+            }
+
+            // STEP 4: Update local cache
+            _ = databaseService.updateTransaction(transaction)
+
+            // STEP 5: Update in-memory state
             if let index = transactions.firstIndex(where: { $0.id == transaction.id }) {
                 transactions[index] = transaction
             }
 
-            // Trigger sync if online
-            triggerSync()
+            return true
+        } catch {
+            lastError = "Failed to update transaction: \(error.localizedDescription)"
+            return false
         }
-        return success
     }
-    
-    func deleteTransaction(_ transaction: Transaction) -> Bool {
-        let success = databaseService.deleteTransaction(by: transaction.id)
-        if success {
-            lastDeletedTransaction = transaction
-            transactions.removeAll { $0.id == transaction.id }
 
-            // Trigger sync if online
-            triggerSync()
+    func updateTransaction(_ transaction: Transaction) -> Bool {
+        guard networkMonitor.isConnected else {
+            lastError = "No internet connection. Please try again when online."
+            return false
         }
-        return success
+
+        var result = false
+        let semaphore = DispatchSemaphore(value: 0)
+
+        Task {
+            result = await updateTransaction(transaction)
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+        return result
+    }
+
+    func deleteTransaction(_ transaction: Transaction) async -> Bool {
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            // STEP 1: Delete from Supabase
+            try await supabaseService.deleteTransaction(transaction.id)
+
+            // STEP 2: Update local cache
+            _ = databaseService.deleteTransaction(by: transaction.id)
+
+            // STEP 3: Update in-memory state
+            transactions.removeAll { $0.id == transaction.id }
+            lastDeletedTransaction = transaction
+
+            return true
+        } catch {
+            lastError = "Failed to delete transaction: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    func deleteTransaction(_ transaction: Transaction) -> Bool {
+        guard networkMonitor.isConnected else {
+            lastError = "No internet connection. Please try again when online."
+            return false
+        }
+
+        var result = false
+        let semaphore = DispatchSemaphore(value: 0)
+
+        Task {
+            result = await deleteTransaction(transaction)
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+        return result
     }
 
     func deleteAllTransactions(for subCategory: SubCategory) -> Bool {
-        // For simplicity, only track single transaction undo for now
         lastDeletedTransaction = nil
-        let categoryTransactions = getAllTransactions().filter { $0.categoryId == subCategory.id }
+        let categoryTransactions = transactions.filter { $0.categoryId == subCategory.id }
         var allSuccess = true
 
         for transaction in categoryTransactions {
-            let success = databaseService.deleteTransaction(by: transaction.id)
-            if success {
-                transactions.removeAll { $0.id == transaction.id }
-            } else {
+            if !deleteTransaction(transaction) {
                 allSuccess = false
             }
-        }
-
-        // Trigger sync if online and at least one deletion succeeded
-        if allSuccess {
-            triggerSync()
         }
 
         return allSuccess
     }
 
+    // MARK: - Legacy Methods (keeping for compatibility)
+
+    func loadCurrentBudget() {
+        loadFromCache()
+    }
+
+    func hasExistingBudgets() -> Bool {
+        return !databaseService.fetchBudgets().isEmpty
+    }
+
+    func deleteBudget(_ budgetId: UUID) -> Bool {
+        // This should deactivate on Supabase, but keeping simple for now
+        let success = databaseService.deleteBudget(by: budgetId)
+        if success && currentBudget?.id == budgetId {
+            currentBudget = nil
+            transactions = []
+        }
+        return success
+    }
+
+    func getAllBudgets() -> [Budget] {
+        return databaseService.fetchBudgets()
+    }
+
+    func getTransactions(for budgetId: UUID) -> [Transaction] {
+        return databaseService.fetchTransactions(for: budgetId)
+    }
+
+    func getAllTransactions() -> [Transaction] {
+        return transactions
+    }
+
+    func getAllTransactionsAcrossAllBudgets() -> [Transaction] {
+        return databaseService.fetchAllTransactions()
+    }
+
     // MARK: - Undo Operations
 
     func undoLastTransaction() -> Bool {
-        guard let deletedTransaction = lastDeletedTransaction,
-              let currentBudgetId = currentBudget?.id else { return false }
+        guard let deletedTransaction = lastDeletedTransaction else { return false }
 
-        let success = databaseService.createTransaction(deletedTransaction, budgetId: currentBudgetId)
+        let success = addTransaction(deletedTransaction)
         if success {
-            transactions.append(deletedTransaction)
             lastDeletedTransaction = nil
-
-            // Trigger sync if online
-            triggerSync()
         }
         return success
     }
@@ -230,21 +591,7 @@ class BudgetManager: BudgetManagerProtocol {
     func canUndo() -> Bool {
         return lastDeletedTransaction != nil
     }
-    
-    func getTransactions(for budgetId: UUID) -> [Transaction] {
-        return databaseService.fetchTransactions(for: budgetId)
-    }
-    
-    func getAllTransactions() -> [Transaction] {
-        // Return transactions for the current budget only
-        return transactions
-    }
 
-    func getAllTransactionsAcrossAllBudgets() -> [Transaction] {
-        // Return all transactions across all budgets (used for trends, insights, export)
-        return databaseService.fetchAllTransactions()
-    }
-    
     // MARK: - Budget Analysis (Computed Properties)
 
     var budget: Budget {
@@ -299,7 +646,7 @@ class BudgetManager: BudgetManagerProtocol {
         let spent = totalSpent(excludingSavings: excludingSavings)
         return min(1.0, spent / budgetAmount)
     }
-    
+
     // MARK: - Sub-Category Level Calculations
 
     func spentAmount(for subCategory: SubCategory) -> Double {
@@ -332,7 +679,6 @@ class BudgetManager: BudgetManagerProtocol {
     func subCategories(for group: CategoryGroup) -> [SubCategory] {
         let filteredCategories = budget.categories.filter { $0.categoryGroup == group }
 
-        // Sort by spending percentage (highest first)
         return filteredCategories.sorted { cat1, cat2 in
             let percentage1 = spentPercentage(for: cat1)
             let percentage2 = spentPercentage(for: cat2)
@@ -384,7 +730,7 @@ class BudgetManager: BudgetManagerProtocol {
             .prefix(limit)
             .map { $0 }
     }
-    
+
     // MARK: - Budget Navigation
 
     func getAllBudgetsSorted() -> [Budget] {
@@ -401,11 +747,13 @@ class BudgetManager: BudgetManagerProtocol {
         guard let currentIndex = getCurrentBudgetIndex() else { return false }
         let allBudgets = getAllBudgetsSorted()
 
-        let previousIndex = currentIndex + 1 // Since sorted descending, next index is "previous" chronologically
+        let previousIndex = currentIndex + 1
         guard previousIndex < allBudgets.count else { return false }
 
         currentBudget = allBudgets[previousIndex]
-        loadTransactions()
+        if let budgetId = currentBudget?.id {
+            transactions = databaseService.fetchTransactions(for: budgetId)
+        }
         return true
     }
 
@@ -413,11 +761,13 @@ class BudgetManager: BudgetManagerProtocol {
         guard let currentIndex = getCurrentBudgetIndex() else { return false }
         let allBudgets = getAllBudgetsSorted()
 
-        let nextIndex = currentIndex - 1 // Since sorted descending, previous index is "next" chronologically
+        let nextIndex = currentIndex - 1
         guard nextIndex >= 0 else { return false }
 
         currentBudget = allBudgets[nextIndex]
-        loadTransactions()
+        if let budgetId = currentBudget?.id {
+            transactions = databaseService.fetchTransactions(for: budgetId)
+        }
         return true
     }
 
@@ -434,7 +784,7 @@ class BudgetManager: BudgetManagerProtocol {
 
     func isViewingMostRecentBudget() -> Bool {
         guard let currentIndex = getCurrentBudgetIndex() else { return false }
-        return currentIndex == 0 // Index 0 is the most recent budget
+        return currentIndex == 0
     }
 
     func switchToBudget(with id: UUID) -> Bool {
@@ -442,7 +792,7 @@ class BudgetManager: BudgetManagerProtocol {
         guard let targetBudget = allBudgets.first(where: { $0.id == id }) else { return false }
 
         currentBudget = targetBudget
-        loadTransactions()
+        transactions = databaseService.fetchTransactions(for: targetBudget.id)
         return true
     }
 
@@ -484,7 +834,6 @@ class BudgetManager: BudgetManagerProtocol {
 
     func getNextBudgetPeriod() -> BudgetPeriod {
         guard let currentBudget = currentBudget else {
-            // Fallback to creating a new monthly budget starting today
             return BudgetPeriod(startDate: Date())
         }
 
@@ -493,12 +842,10 @@ class BudgetManager: BudgetManagerProtocol {
 
         switch currentPeriod.type {
         case .monthly:
-            // Next month budget: start day after current budget ends
             let nextStartDate = calendar.date(byAdding: .day, value: 1, to: currentPeriod.endDate) ?? Date()
             return BudgetPeriod(type: .monthly, startDate: nextStartDate)
 
         case .custom:
-            // For custom budgets, create the same duration starting after current budget ends
             let duration = currentPeriod.durationInDays
             let nextStartDate = calendar.date(byAdding: .day, value: 1, to: currentPeriod.endDate) ?? Date()
             let nextEndDate = calendar.date(byAdding: .day, value: duration - 1, to: nextStartDate) ?? nextStartDate
@@ -510,108 +857,61 @@ class BudgetManager: BudgetManagerProtocol {
 
     func createNextPeriodBudget() async -> Bool {
         guard let currentBudget = currentBudget else { return false }
+        guard let userId = authManager?.currentUser?.id else { return false }
 
-        // Deactivate current budget if authenticated
-        if authManager?.isAuthenticated == true {
-            do {
-                try await syncManager?.deactivateCurrentBudget()
-            } catch {
-                print("Failed to deactivate current budget: \(error)")
-                return false
-            }
+        // Deactivate current budget
+        do {
+            try await supabaseService.deactivateBudget(currentBudget.id)
+        } catch {
+            lastError = "Failed to deactivate current budget: \(error.localizedDescription)"
+            return false
         }
 
         let nextPeriod = getNextBudgetPeriod()
+
+        // Create NEW categories with NEW IDs
+        let newCategories = currentBudget.categories.map { oldCategory in
+            SubCategory(
+                name: oldCategory.name,
+                categoryGroup: oldCategory.categoryGroup,
+                categoryType: oldCategory.categoryType
+            )
+        }
+
+        // Map old category amounts to new category IDs
+        let newCategoryAmounts = Dictionary(uniqueKeysWithValues:
+            zip(newCategories, currentBudget.categories).map { (newCat, oldCat) in
+                let oldAmount = currentBudget.categoryAmounts[oldCat.id.uuidString] ?? 0
+                return (newCat.id.uuidString, oldAmount)
+            }
+        )
+
         let nextBudget = Budget(
             period: nextPeriod,
             currency: currentBudget.currency,
-            categories: currentBudget.categories,
-            categoryAmounts: currentBudget.categoryAmounts
+            categories: newCategories,
+            categoryAmounts: newCategoryAmounts
         )
 
-        let success = createBudget(nextBudget)
-
-        // Sync new budget to server
-        if success && authManager?.isAuthenticated == true {
-            await syncActiveBudget()
-        }
-
-        return success
+        return await createBudget(nextBudget)
     }
 
-    // MARK: - Sync Methods
+    // MARK: - Data Cleanup
 
-    /// Sync active budget with Supabase
-    func syncActiveBudget() async {
-        guard let syncManager = syncManager else {
-            print("   ⚠️ Sync skipped: No sync manager available")
-            return
+    func clearAllData() throws {
+        print("🧹 BudgetManager.clearAllData() called")
+
+        guard let databaseService = databaseService as? DatabaseService else {
+            throw BudgetError.localDBFailed("Database service not available")
         }
 
-        print("🔄 BudgetManager: Starting sync with Supabase...")
-        do {
-            try await syncManager.syncActiveBudget()
-            print("   ✅ Sync completed successfully")
-            updateSyncState()
-            // Reload local data after sync
-            loadCurrentBudget()
-        } catch {
-            print("   ❌ Sync failed: \(error)")
-            syncState = .error(error.localizedDescription)
-        }
+        try databaseService.clearAllLocalData()
+
+        currentBudget = nil
+        transactions = []
+        lastDeletedTransaction = nil
+        syncState = .offline
+
+        print("✅ BudgetManager: All data cleared successfully")
     }
-
-    /// Update sync state from sync manager
-    private func updateSyncState() {
-        guard let syncManager = syncManager else { return }
-        syncState = syncManager.syncState
-    }
-
-    /// Trigger sync after data changes
-    private func triggerSync() {
-        guard networkMonitor.isConnected else {
-            print("   ⚠️ Sync skipped: No network connection")
-            return
-        }
-        guard authManager?.isAuthenticated == true else {
-            print("   ⚠️ Sync skipped: User not authenticated")
-            return
-        }
-
-        print("   ✅ Network connected and authenticated, starting sync task...")
-        Task {
-            await syncActiveBudget()
-        }
-    }
-
-    /// Force a full sync
-    func forceSync() async {
-        guard let syncManager = syncManager else { return }
-
-        do {
-            try await syncManager.forceSync()
-            updateSyncState()
-            loadCurrentBudget()
-        } catch {
-            print("Force sync failed: \(error)")
-            syncState = .error(error.localizedDescription)
-        }
-    }
-
-    /// Reset sync flags and force sync (for recovery from failed syncs)
-    func resetAndSync() async {
-        guard let syncManager = syncManager else { return }
-
-        do {
-            print("🔄 Forcing full re-sync from Supabase...")
-            try await syncManager.forceSync()
-            updateSyncState()
-            loadCurrentBudget()
-            print("✅ Force sync completed, budget reloaded")
-        } catch {
-            print("Reset and sync failed: \(error)")
-            syncState = .error(error.localizedDescription)
-        }
-    }
-
 }

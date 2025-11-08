@@ -14,15 +14,12 @@ struct SyncStatusView: View {
     var body: some View {
         HStack(spacing: 4) {
             switch state {
-            case .idle:
-                EmptyView()
-
             case .syncing:
                 ProgressView()
                     .scaleEffect(0.7)
                     .tint(theme.colors.textPrimary)
 
-            case .success(let date):
+            case .synced(let date):
                 Image(systemName: "checkmark.icloud")
                     .font(.system(size: 16))
                     .foregroundStyle(.green)
@@ -43,9 +40,8 @@ struct SyncStatusView: View {
 
 #Preview {
     VStack(spacing: 20) {
-        SyncStatusView(state: .idle)
         SyncStatusView(state: .syncing)
-        SyncStatusView(state: .success(Date()))
+        SyncStatusView(state: .synced(Date()))
         SyncStatusView(state: .error("Test error"))
         SyncStatusView(state: .offline)
     }

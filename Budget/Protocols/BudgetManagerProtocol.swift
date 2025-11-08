@@ -59,7 +59,7 @@ protocol BudgetManagerProtocol {
 
     // Budget updates and sync
     func updateBudget(_ budget: Budget) -> Bool
-    func syncActiveBudget() async
+    func refreshFromSupabase() async
 }
 
 // MARK: - Default Parameter Extensions

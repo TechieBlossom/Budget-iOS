@@ -18,6 +18,10 @@ fileprivate extension String {
         case "Lifestyle": return "lifestyle"
         case "Occasional": return "occasional"
         case "Financial Goals": return "financialGoals"
+        case "Debt & Obligations": return "debtObligations"
+        case "Business Expenses": return "businessExpenses"
+        case "Family & Dependents": return "familyDependents"
+        case "Home & Property": return "homeProperty"
         case "Miscellaneous": return "miscellaneous"
         default:
             // Fallback: convert to camelCase
@@ -39,6 +43,10 @@ fileprivate extension String {
         case "lifestyle": return "Lifestyle"
         case "occasional": return "Occasional"
         case "financialGoals": return "Financial Goals"
+        case "debtObligations": return "Debt & Obligations"
+        case "businessExpenses": return "Business Expenses"
+        case "familyDependents": return "Family & Dependents"
+        case "homeProperty": return "Home & Property"
         case "miscellaneous": return "Miscellaneous"
         default: return self.capitalized
         }
@@ -105,6 +113,7 @@ struct SupabaseCategory: Codable {
 
 struct SupabaseTransaction: Codable {
     let id: UUID
+    let budgetId: UUID
     let categoryId: UUID
     let categoryGroup: String
     let amount: Double
@@ -118,6 +127,7 @@ struct SupabaseTransaction: Codable {
 
     enum CodingKeys: String, CodingKey {
         case id
+        case budgetId = "budget_id"
         case categoryId = "category_id"
         case categoryGroup = "category_group"
         case amount
@@ -134,129 +144,174 @@ struct SupabaseTransaction: Codable {
 // MARK: - Conversion Extensions
 
 extension SupabaseBudget {
-    /// Convert to BudgetDataModel
-    func toBudgetDataModel() -> BudgetDataModel {
-        // Create empty data for legacy fields
-        let emptyCategories = Data()
-        let emptyAmounts = Data()
+    /// Convert to domain Budget model with categories
+    func toBudget(categories: [SupabaseCategory]) -> Budget {
+        let subcategories = categories.map { category in
+            let group = CategoryGroup(rawValue: category.categoryGroup.toDisplayCategoryGroup) ?? .miscellaneous
+            let type = CategoryType(rawValue: category.categoryType) ?? .expense
+            return SubCategory(
+                id: category.id,
+                name: category.name,
+                categoryGroup: group,
+                categoryType: type
+            )
+        }
 
+        let categoryAmounts = Dictionary(
+            uniqueKeysWithValues: categories.map { ($0.id.uuidString, $0.allocatedAmount) }
+        )
+
+        let currency = Currency(code: currencyCode, name: currencyName, symbol: currencySymbol)
+        let type = BudgetType(rawValue: budgetType) ?? .monthly
+        let period = BudgetPeriod(type: type, startDate: startDate, endDate: endDate, customName: budgetName)
+
+        return Budget(
+            id: id,
+            period: period,
+            currency: currency,
+            categories: subcategories,
+            categoryAmounts: categoryAmounts
+        )
+    }
+
+    /// Convert to BudgetDataModel (for local cache)
+    func toBudgetDataModel() -> BudgetDataModel {
         let model = BudgetDataModel(
             budgetId: id,
+            userId: userId,
+            isActive: isActive,
             startDate: startDate,
             endDate: endDate,
             budgetType: budgetType,
             budgetName: budgetName,
             currencyCode: currencyCode,
             currencyName: currencyName,
-            currencySymbol: currencySymbol,
-            categoriesData: emptyCategories,
-            categoryAmountsData: emptyAmounts,
-            userId: userId,
-            isActive: isActive
+            currencySymbol: currencySymbol
         )
 
-        // Set sync metadata
-        model.lastSyncedAt = Date()
-        model.needsSync = false
         model.createdAt = createdAt
         model.updatedAt = updatedAt
 
         return model
     }
 
-    /// Create from BudgetDataModel
-    static func from(_ model: BudgetDataModel, userId: UUID) -> SupabaseBudget {
+    /// Create from domain Budget model
+    static func from(_ budget: Budget, userId: UUID) -> SupabaseBudget {
         return SupabaseBudget(
-            id: model.budgetId,
+            id: budget.id,
             userId: userId,
-            startDate: model.startDate,
-            endDate: model.endDate,
-            budgetType: model.budgetType,
-            budgetName: model.budgetName,
-            currencyCode: model.currencyCode,
-            currencyName: model.currencyName,
-            currencySymbol: model.currencySymbol,
-            isActive: model.isActive,
-            createdAt: model.createdAt,
-            updatedAt: model.updatedAt
+            startDate: budget.period.startDate,
+            endDate: budget.period.endDate,
+            budgetType: budget.period.type.rawValue,
+            budgetName: budget.period.name,
+            currencyCode: budget.currency.code,
+            currencyName: budget.currency.name,
+            currencySymbol: budget.currency.symbol,
+            isActive: true,
+            createdAt: Date(),
+            updatedAt: Date()
         )
     }
 }
 
 extension SupabaseCategory {
-    /// Convert to CategoryDataModel
+    /// Convert to CategoryDataModel (for local cache)
     func toCategoryDataModel() -> CategoryDataModel {
         let model = CategoryDataModel(
             categoryId: id,
             budgetId: budgetId,
             name: name,
-            categoryGroup: categoryGroup.toDisplayCategoryGroup, // Convert from DB format
+            categoryGroup: categoryGroup.toDisplayCategoryGroup,
             categoryType: categoryType,
             allocatedAmount: allocatedAmount
         )
 
-        // Set sync metadata
-        model.lastSyncedAt = Date()
-        model.needsSync = false
         model.createdAt = createdAt
         model.updatedAt = updatedAt
 
         return model
     }
 
-    /// Create from CategoryDataModel
-    static func from(_ model: CategoryDataModel) -> SupabaseCategory {
+    /// Convert to domain model SubCategory
+    func toSubCategory() -> SubCategory {
+        let group = CategoryGroup(rawValue: categoryGroup.toDisplayCategoryGroup) ?? .miscellaneous
+        let type = CategoryType(rawValue: categoryType) ?? .expense
+        return SubCategory(
+            id: id,
+            name: name,
+            categoryGroup: group,
+            categoryType: type
+        )
+    }
+
+    /// Create from SubCategory with budget context
+    static func from(_ subCategory: SubCategory, budgetId: UUID, amount: Double) -> SupabaseCategory {
         return SupabaseCategory(
-            id: model.categoryId,
-            budgetId: model.budgetId,
-            name: model.name,
-            categoryGroup: model.categoryGroup.toDatabaseCategoryGroup, // Convert to DB format
-            categoryType: model.categoryType,
-            allocatedAmount: model.allocatedAmount,
-            createdAt: model.createdAt,
-            updatedAt: model.updatedAt
+            id: subCategory.id,
+            budgetId: budgetId,
+            name: subCategory.name,
+            categoryGroup: subCategory.categoryGroup.rawValue.toDatabaseCategoryGroup,
+            categoryType: subCategory.categoryType.rawValue,
+            allocatedAmount: amount,
+            createdAt: Date(),
+            updatedAt: Date()
         )
     }
 }
 
 extension SupabaseTransaction {
-    /// Convert to TransactionDataModel
+    /// Convert to TransactionDataModel (for local cache)
     func toTransactionDataModel() -> TransactionDataModel {
         let model = TransactionDataModel(
             transactionId: id,
+            budgetId: budgetId,
+            categoryId: categoryId,
+            categoryGroup: categoryGroup.toDisplayCategoryGroup,
             amount: amount,
             name: name,
             notes: notes,
             date: transactionDate,
-            categoryId: categoryId,
-            categoryGroup: categoryGroup.toDisplayCategoryGroup, // Convert from DB format
             isRecurring: isRecurring,
             recurrenceType: recurrenceType
         )
 
-        // Set sync metadata
-        model.lastSyncedAt = Date()
-        model.needsSync = false
         model.createdAt = createdAt
         model.updatedAt = updatedAt
 
         return model
     }
 
-    /// Create from TransactionDataModel
-    static func from(_ model: TransactionDataModel) -> SupabaseTransaction {
+    /// Convert to domain model Transaction
+    func toTransaction() -> Transaction {
+        let recurrence = RecurrenceType(rawValue: recurrenceType) ?? .none
+        return Transaction(
+            id: id,
+            amount: amount,
+            name: name,
+            notes: notes,
+            date: transactionDate,
+            categoryId: categoryId,
+            budgetId: budgetId,
+            isRecurring: isRecurring,
+            recurrenceType: recurrence
+        )
+    }
+
+    /// Create from domain Transaction with category group
+    static func from(_ transaction: Transaction, categoryGroup: String) -> SupabaseTransaction {
         return SupabaseTransaction(
-            id: model.transactionId,
-            categoryId: model.categoryId,
-            categoryGroup: model.categoryGroup.toDatabaseCategoryGroup, // Convert to DB format
-            amount: model.amount,
-            name: model.name,
-            notes: model.notes,
-            transactionDate: model.date,
-            isRecurring: model.isRecurring,
-            recurrenceType: model.recurrenceType,
-            createdAt: model.createdAt,
-            updatedAt: model.updatedAt
+            id: transaction.id,
+            budgetId: transaction.budgetId,
+            categoryId: transaction.categoryId,
+            categoryGroup: categoryGroup.toDatabaseCategoryGroup,
+            amount: transaction.amount,
+            name: transaction.name,
+            notes: transaction.notes,
+            transactionDate: transaction.date,
+            isRecurring: transaction.isRecurring,
+            recurrenceType: transaction.recurrenceType.rawValue,
+            createdAt: Date(),
+            updatedAt: Date()
         )
     }
 }

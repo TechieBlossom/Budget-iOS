@@ -11,9 +11,8 @@ struct AddTransactionSheet: View {
     let budgetName: String
     let categoryAmounts: [String: Double]
     let existingTransaction: Transaction?
-    let onSaveTransaction: (Transaction) -> Void
-    let onUpdateBudget: ((Budget) -> Bool)?
-    let onDeleteTransaction: ((Transaction) -> Void)?
+    let budgetManager: any BudgetManagerProtocol
+    let onSuccess: () -> Void
 
     @State private var name: String = ""
     @State private var amount: String = ""
@@ -26,12 +25,14 @@ struct AddTransactionSheet: View {
     @State private var selectedRecurrenceIndex: Int = 0  // 0 = Weekly, 1 = Monthly
     @State private var showingDeleteConfirmation = false
     @State private var showingSubCategoryPicker = false
+    @State private var isSaving = false
+    @State private var errorMessage: String?
 
     private var isEditMode: Bool {
         existingTransaction != nil
     }
 
-    init(budgetId: UUID, categories: [SubCategory], currency: Currency, budgetPeriod: BudgetPeriod, budgetName: String, categoryAmounts: [String: Double], existingTransaction: Transaction? = nil, onSaveTransaction: @escaping (Transaction) -> Void, onUpdateBudget: ((Budget) -> Bool)? = nil, onDeleteTransaction: ((Transaction) -> Void)? = nil) {
+    init(budgetId: UUID, categories: [SubCategory], currency: Currency, budgetPeriod: BudgetPeriod, budgetName: String, categoryAmounts: [String: Double], existingTransaction: Transaction? = nil, budgetManager: any BudgetManagerProtocol, onSuccess: @escaping () -> Void) {
         self.budgetId = budgetId
         self.categories = categories
         self.currency = currency
@@ -39,9 +40,8 @@ struct AddTransactionSheet: View {
         self.budgetName = budgetName
         self.categoryAmounts = categoryAmounts
         self.existingTransaction = existingTransaction
-        self.onSaveTransaction = onSaveTransaction
-        self.onUpdateBudget = onUpdateBudget
-        self.onDeleteTransaction = onDeleteTransaction
+        self.budgetManager = budgetManager
+        self.onSuccess = onSuccess
 
         // Initialize state from existing transaction if in edit mode
         if let transaction = existingTransaction {
@@ -57,28 +57,31 @@ struct AddTransactionSheet: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(spacing: DSSpacing.xl) {
-                        // Top spacing
-                        Rectangle()
-                            .fill(Color.clear)
-                            .frame(height: 8)
+            ZStack {
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(spacing: DSSpacing.xl) {
+                            // Top spacing
+                            Rectangle()
+                                .fill(Color.clear)
+                                .frame(height: 8)
 
-                        // Date Section
-                        HorizontalDatePicker(selectedDate: $selectedDate, budgetPeriod: budgetPeriod)
+                            // Date Section
+                            HorizontalDatePicker(selectedDate: $selectedDate, budgetPeriod: budgetPeriod)
 
-                        // Name Section
-                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                            DSText("Expense Name", font: .dsHeadline, color: theme.colors.textPrimary)
-                            DSTextField("e.g., Coffee, Groceries, Gas", text: $name, autocapitalization: .words)
-                        }.padding(.horizontal, DSSpacing.md)
+                            // Name Section
+                            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                                DSText("Expense Name", font: .dsHeadline, color: theme.colors.textPrimary)
+                                DSTextField("e.g., Coffee, Groceries, Gas", text: $name, autocapitalization: .words)
+                                    .disabled(isSaving)
+                            }.padding(.horizontal, DSSpacing.md)
 
-                        // Amount Section
-                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                            DSText("Amount", font: .dsHeadline, color: theme.colors.textPrimary)
-                            DSTextField("Enter amount (e.g., 25.50)", text: $amount, keyboardType: .decimalPad)
-                        }.padding(.horizontal, DSSpacing.md)
+                            // Amount Section
+                            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                                DSText("Amount", font: .dsHeadline, color: theme.colors.textPrimary)
+                                DSTextField("Enter amount (e.g., 25.50)", text: $amount, keyboardType: .decimalPad)
+                                    .disabled(isSaving)
+                            }.padding(.horizontal, DSSpacing.md)
 
                         // Recurring Transaction Section
                         VStack(alignment: .leading, spacing: DSSpacing.sm) {
@@ -115,6 +118,7 @@ struct AddTransactionSheet: View {
                             DSText("Notes (Optional)", font: .dsHeadline, color: theme.colors.textPrimary)
 
                             DSTextField("e.g., Lunch with colleagues, Receipt #1234", text: $notes, autocapitalization: .words)
+                                .disabled(isSaving)
                         }.padding(.horizontal, DSSpacing.md)
 
                         // Category Section
@@ -122,7 +126,9 @@ struct AddTransactionSheet: View {
                             DSText("Category", font: .dsHeadline, color: theme.colors.textPrimary)
 
                             Button(action: {
-                                showingSubCategoryPicker = true
+                                if !isSaving {
+                                    showingSubCategoryPicker = true
+                                }
                             }) {
                                 HStack(spacing: DSSpacing.sm) {
                                     if let subCategory = selectedSubCategory {
@@ -149,7 +155,14 @@ struct AddTransactionSheet: View {
                                 .cornerRadius(12)
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .disabled(isSaving)
                         }.padding(.horizontal, DSSpacing.md)
+
+                        // Error Message
+                        if let errorMessage = errorMessage {
+                            DSText(errorMessage, font: .dsCaption, color: .red)
+                                .padding(.horizontal, DSSpacing.md)
+                        }
 
                         // Bottom spacing
                         Rectangle()
@@ -157,8 +170,26 @@ struct AddTransactionSheet: View {
                             .frame(height: 20)
                     }
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
             .background(theme.colors.background)
+
+            // Loading Overlay
+            if isSaving {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+
+                VStack(spacing: DSSpacing.md) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .tint(theme.colors.primary)
+                    DSText("Saving...", font: .dsBody, color: theme.colors.textPrimary)
+                }
+                .padding(DSSpacing.xl)
+                .background(theme.colors.surface)
+                .cornerRadius(12)
+            }
+        }
             .navigationTitle(isEditMode ? "Edit Expense" : "Add Expense")
             .navigationBarTitleDisplayMode(.inline)
             .customNavigationBarAppearance()
@@ -168,14 +199,18 @@ struct AddTransactionSheet: View {
                         .font(.dsHeadline)
                         .foregroundColor(theme.colors.textPrimary)
                         .onTapGesture {
-                            dismiss()
+                            if !isSaving {
+                                dismiss()
+                            }
                         }
                 }
 
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    if isEditMode, onDeleteTransaction != nil {
+                    if isEditMode {
                         Button(action: {
-                            showingDeleteConfirmation = true
+                            if !isSaving {
+                                showingDeleteConfirmation = true
+                            }
                         }) {
                             Image(systemName: "trash")
                                 .font(.dsHeadline)
@@ -184,7 +219,9 @@ struct AddTransactionSheet: View {
                     }
 
                     Button(action: {
-                        saveTransaction()
+                        if !isSaving {
+                            saveTransaction()
+                        }
                     }) {
                         Image(systemName: "checkmark")
                             .font(.dsHeadline)
@@ -198,8 +235,7 @@ struct AddTransactionSheet: View {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
                 if let transaction = existingTransaction {
-                    onDeleteTransaction?(transaction)
-                    dismiss()
+                    deleteTransaction(transaction)
                 }
             }
         } message: {
@@ -232,7 +268,7 @@ struct AddTransactionSheet: View {
         Double(amount) != nil &&
         Double(amount) ?? 0 > 0
     }
-    
+
     private func saveTransaction() {
         guard let subCategory = selectedSubCategory,
               let amountValue = Double(amount),
@@ -253,6 +289,7 @@ struct AddTransactionSheet: View {
                 notes: notes,
                 date: selectedDate,
                 categoryId: subCategory.id,
+                budgetId: budgetId,
                 isRecurring: isRecurring,
                 recurrenceType: recurrenceType
             )
@@ -264,6 +301,7 @@ struct AddTransactionSheet: View {
                 notes: notes,
                 date: selectedDate,
                 categoryId: subCategory.id,
+                budgetId: budgetId,
                 isRecurring: isRecurring,
                 recurrenceType: recurrenceType
             )
@@ -279,21 +317,82 @@ struct AddTransactionSheet: View {
             }
         }
 
-        // Sub-category has budget, proceed normally
-        // If recurring and in add mode, add multiple transactions
-        if isRecurring && !isEditMode {
-            addRecurringTransactions(baseTransaction: transaction, subCategory: subCategory)
-        } else {
-            onSaveTransaction(transaction)
+        // Sub-category has budget, proceed with async save
+        isSaving = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let success: Bool
+
+                if isEditMode {
+                    // Edit mode: update transaction
+                    print("📝 AddTransactionSheet: Updating transaction...")
+                    if let manager = budgetManager as? BudgetManager {
+                        success = await manager.updateTransaction(transaction)
+                    } else {
+                        success = budgetManager.updateTransaction(transaction)
+                    }
+                } else {
+                    // Add mode: add transaction(s)
+                    if isRecurring {
+                        // Add recurring transactions
+                        print("🔁 AddTransactionSheet: Adding recurring transactions...")
+                        success = await addRecurringTransactions(baseTransaction: transaction, subCategory: subCategory)
+                    } else {
+                        // Add single transaction
+                        print("➕ AddTransactionSheet: Adding single transaction...")
+                        if let manager = budgetManager as? BudgetManager {
+                            success = await manager.addTransaction(transaction)
+                        } else {
+                            success = budgetManager.addTransaction(transaction)
+                        }
+                    }
+                }
+
+                if !success {
+                    print("   ❌ Save failed")
+                    isSaving = false
+                    if let manager = budgetManager as? BudgetManager {
+                        errorMessage = manager.lastError ?? "Failed to save transaction"
+                        print("   Error: \(manager.lastError ?? "unknown")")
+                    } else {
+                        errorMessage = "Failed to save transaction"
+                    }
+                    return
+                }
+
+                print("   ✅ Save succeeded")
+
+                // Force a refresh to ensure UI has latest data
+                if let manager = budgetManager as? BudgetManager {
+                    print("   🔄 Forcing refresh from Supabase to sync UI...")
+                    await manager.refreshFromSupabase()
+                    print("   ✅ Refresh complete")
+                }
+
+                print("   ✅ Dismissing sheet")
+                isSaving = false
+                onSuccess()
+                dismiss()
+            }
         }
-        dismiss()
     }
 
-    private func addRecurringTransactions(baseTransaction: Transaction, subCategory: SubCategory) {
+    private func addRecurringTransactions(baseTransaction: Transaction, subCategory: SubCategory) async -> Bool {
         let calendar = Calendar.current
 
         // Add the initial transaction
-        onSaveTransaction(baseTransaction)
+        var success: Bool
+        if let manager = budgetManager as? BudgetManager {
+            success = await manager.addTransaction(baseTransaction)
+        } else {
+            success = budgetManager.addTransaction(baseTransaction)
+        }
+
+        if !success {
+            return false
+        }
 
         // Calculate how many recurring transactions to add based on budget period
         let occurrences: Int
@@ -329,41 +428,124 @@ struct AddTransactionSheet: View {
                     notes: baseTransaction.notes,
                     date: date,
                     categoryId: subCategory.id,
+                    budgetId: budgetId,
                     isRecurring: true,
                     recurrenceType: baseTransaction.recurrenceType
                 )
-                onSaveTransaction(recurringTransaction)
+
+                if let manager = budgetManager as? BudgetManager {
+                    success = await manager.addTransaction(recurringTransaction)
+                } else {
+                    success = budgetManager.addTransaction(recurringTransaction)
+                }
+
+                if !success {
+                    return false
+                }
             }
         }
+
+        return true
     }
 
     private func addTransactionWithBudgetUpdate() {
         guard let transaction = pendingTransaction,
-              let category = selectedSubCategory,
-              let onUpdateBudget = onUpdateBudget else {
+              let category = selectedSubCategory else {
             return
         }
 
-        // Create updated budget with the transaction amount as the category budget
-        var updatedCategoryAmounts = categoryAmounts
-        updatedCategoryAmounts[category.id.uuidString] = transaction.amount
+        isSaving = true
+        errorMessage = nil
 
-        let updatedBudget = Budget(
-            id: budgetId,
-            period: budgetPeriod,
-            currency: currency,
-            categories: categories,
-            categoryAmounts: updatedCategoryAmounts
-        )
+        Task {
+            // Create updated budget with the transaction amount as the category budget
+            var updatedCategoryAmounts = categoryAmounts
+            updatedCategoryAmounts[category.id.uuidString] = transaction.amount
 
-        // Update the budget first
-        if onUpdateBudget(updatedBudget) {
-            // Then add the transaction
-            onSaveTransaction(transaction)
-            dismiss()
+            let updatedBudget = Budget(
+                id: budgetId,
+                period: budgetPeriod,
+                currency: currency,
+                categories: categories,
+                categoryAmounts: updatedCategoryAmounts
+            )
+
+            // Update the budget first
+            var success: Bool
+            if let manager = budgetManager as? BudgetManager {
+                success = await manager.updateBudget(updatedBudget)
+            } else {
+                success = budgetManager.updateBudget(updatedBudget)
+            }
+
+            if success {
+                // Then add the transaction
+                if let manager = budgetManager as? BudgetManager {
+                    success = await manager.addTransaction(transaction)
+                } else {
+                    success = budgetManager.addTransaction(transaction)
+                }
+
+                if success {
+                    // Force refresh
+                    if let manager = budgetManager as? BudgetManager {
+                        await manager.refreshFromSupabase()
+                    }
+
+                    isSaving = false
+                    onSuccess()
+                    dismiss()
+                } else {
+                    isSaving = false
+                    if let manager = budgetManager as? BudgetManager {
+                        errorMessage = manager.lastError ?? "Failed to add transaction"
+                    } else {
+                        errorMessage = "Failed to add transaction"
+                    }
+                }
+            } else {
+                isSaving = false
+                if let manager = budgetManager as? BudgetManager {
+                    errorMessage = manager.lastError ?? "Failed to update budget"
+                } else {
+                    errorMessage = "Failed to update budget"
+                }
+            }
+
+            pendingTransaction = nil
         }
+    }
 
-        pendingTransaction = nil
+    private func deleteTransaction(_ transaction: Transaction) {
+        isSaving = true
+        errorMessage = nil
+
+        Task {
+            var success: Bool
+            if let manager = budgetManager as? BudgetManager {
+                success = await manager.deleteTransaction(transaction)
+            } else {
+                success = budgetManager.deleteTransaction(transaction)
+            }
+
+            if success {
+                // Force refresh
+                if let manager = budgetManager as? BudgetManager {
+                    await manager.refreshFromSupabase()
+                }
+
+                isSaving = false
+                onSuccess()
+                dismiss()
+            } else {
+                isSaving = false
+                if let manager = budgetManager as? BudgetManager {
+                    errorMessage = manager.lastError ?? "Failed to delete transaction"
+                } else {
+                    errorMessage = "Failed to delete transaction"
+                }
+            }
+        }
     }
 }
 
@@ -446,11 +628,10 @@ struct HorizontalDatePicker: View {
             .frame(height: 70)
             .onAppear {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    // Find today's date in the range
-                    let today = Date()
-                    if let todayInRange = dateRange.first(where: { calendar.isDate($0, inSameDayAs: today) }) {
+                    // Scroll to the selected date
+                    if let selectedInRange = dateRange.first(where: { calendar.isDate($0, inSameDayAs: selectedDate) }) {
                         withAnimation(.easeInOut(duration: 1.2)) {
-                            proxy.scrollTo(todayInRange, anchor: .center)
+                            proxy.scrollTo(selectedInRange, anchor: .center)
                         }
                     }
                 }
@@ -523,22 +704,24 @@ struct DateCell: View {
     let categoryAmounts = categories.reduce(into: [String: Double]()) { result, category in
         result[category.id.uuidString] = 500.0
     }
+    let budget = Budget(
+        period: budgetPeriod,
+        currency: Currency(code: "USD", name: "US Dollar", symbol: "$"),
+        categories: categories,
+        categoryAmounts: categoryAmounts
+    )
 
     AddTransactionSheet(
-        budgetId: UUID(),
+        budgetId: budget.id,
         categories: categories,
         currency: Currency(code: "USD", name: "US Dollar", symbol: "$"),
         budgetPeriod: budgetPeriod,
         budgetName: budgetPeriod.name,
         categoryAmounts: categoryAmounts,
         existingTransaction: nil,
-        onSaveTransaction: { transaction in
-            print("Added transaction: \(transaction)")
-        },
-        onUpdateBudget: { budget in
-            print("Updated budget: \(budget)")
-            return true
-        },
-        onDeleteTransaction: nil
+        budgetManager: MockBudgetManager(budget: budget),
+        onSuccess: {
+            print("Transaction saved successfully")
+        }
     )
 }
