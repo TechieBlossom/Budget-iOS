@@ -548,28 +548,42 @@ struct DayOfWeekBar: View {
 struct OverviewHeroCard: View {
     let budgetManager: any BudgetManagerProtocol
     let excludeSavings: Bool
+    let selectedGroups: Set<CategoryGroup>?
     @Environment(\.appTheme) private var theme
     @State private var animatedSpentPercentage: Double = 0
 
-    init(budgetManager: any BudgetManagerProtocol, excludeSavings: Bool = false) {
+    init(budgetManager: any BudgetManagerProtocol, excludeSavings: Bool = false, selectedGroups: Set<CategoryGroup>? = nil) {
         self.budgetManager = budgetManager
         self.excludeSavings = excludeSavings
+        self.selectedGroups = selectedGroups
     }
 
     private var totalBudgetAmount: Double {
-        budgetManager.totalBudgetAmount(excludingSavings: excludeSavings)
+        if let selectedGroups = selectedGroups {
+            return budgetManager.totalBudgetAmount(excludingSavings: excludeSavings, selectedGroups: selectedGroups)
+        }
+        return budgetManager.totalBudgetAmount(excludingSavings: excludeSavings)
     }
 
     private var totalSpent: Double {
-        budgetManager.totalSpent(excludingSavings: excludeSavings)
+        if let selectedGroups = selectedGroups {
+            return budgetManager.totalSpent(excludingSavings: excludeSavings, selectedGroups: selectedGroups)
+        }
+        return budgetManager.totalSpent(excludingSavings: excludeSavings)
     }
 
     private var totalRemains: Double {
-        budgetManager.totalRemains(excludingSavings: excludeSavings)
+        if let selectedGroups = selectedGroups {
+            return budgetManager.totalRemains(excludingSavings: excludeSavings, selectedGroups: selectedGroups)
+        }
+        return budgetManager.totalRemains(excludingSavings: excludeSavings)
     }
 
     private var spentPercentage: Double {
-        budgetManager.spentPercentage(excludingSavings: excludeSavings)
+        if let selectedGroups = selectedGroups {
+            return budgetManager.spentPercentage(excludingSavings: excludeSavings, selectedGroups: selectedGroups)
+        }
+        return budgetManager.spentPercentage(excludingSavings: excludeSavings)
     }
 
     var body: some View {
@@ -666,11 +680,14 @@ struct OverviewHeroCard: View {
 struct CategoryGroupBarChart: View {
     let budgetManager: any BudgetManagerProtocol
     let excludeSavings: Bool
+    let selectedGroups: Set<CategoryGroup>?
     @Environment(\.appTheme) private var theme
     @State private var showText = false
 
     private var sortedGroups: [(CategoryGroup, Double)] {
-        CategoryGroup.allCases.compactMap { group in
+        let groupsToCheck = selectedGroups ?? Set(CategoryGroup.allCases)
+
+        return groupsToCheck.compactMap { group in
             let spent = budgetManager.spentAmount(for: group)
 
             // If excluding savings (expenses mode), include groups that have at least one savings category
