@@ -90,20 +90,20 @@ struct AddTransactionSheet: View {
 
                                 HStack(spacing: DSSpacing.md) {
                                     DSFilterChip("One-time", isSelected: !isRecurring) {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                        withAnimation(.easeOut(duration: 0.2)) {
                                             isRecurring = false
                                         }
                                     }
 
                                     DSFilterChip("Weekly", isSelected: isRecurring && selectedRecurrenceIndex == 0) {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                        withAnimation(.easeOut(duration: 0.2)) {
                                             isRecurring = true
                                             selectedRecurrenceIndex = 0
                                         }
                                     }
 
                                     DSFilterChip("Monthly", isSelected: isRecurring && selectedRecurrenceIndex == 1) {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                        withAnimation(.easeOut(duration: 0.2)) {
                                             isRecurring = true
                                             selectedRecurrenceIndex = 1
                                         }
@@ -584,7 +584,7 @@ struct CategorySelectionCard: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
+        .animation(.easeOut(duration: 0.2), value: isSelected)
     }
 }
 
@@ -608,10 +608,10 @@ struct HorizontalDatePicker: View {
                             date: date,
                             isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
                             isDisabled: date > Date(),
-                            onTap: { 
+                            onTap: {
                                 if date <= Date() {
                                     selectedDate = date
-                                    withAnimation(.easeInOut(duration: 0.6)) {
+                                    withAnimation(.easeOut(duration: 0.6)) {
                                         proxy.scrollTo(date, anchor: .center)
                                     }
                                 }
@@ -630,7 +630,7 @@ struct HorizontalDatePicker: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     // Scroll to the selected date
                     if let selectedInRange = dateRange.first(where: { calendar.isDate($0, inSameDayAs: selectedDate) }) {
-                        withAnimation(.easeInOut(duration: 1.2)) {
+                        withAnimation(.easeOut(duration: 1.2)) {
                             proxy.scrollTo(selectedInRange, anchor: .center)
                         }
                     }

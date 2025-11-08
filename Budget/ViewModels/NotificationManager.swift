@@ -23,13 +23,13 @@ class NotificationManager {
         self.onAction = onAction
 
         // Show with animation
-        withAnimation(.easeInOut(duration: 0.3)) {
+        withAnimation(.easeOut(duration: 0.3)) {
             isVisible = true
         }
 
         // Create new work item to dismiss after duration
         workItem = DispatchWorkItem {
-            withAnimation(.easeInOut(duration: 0.3)) {
+            withAnimation(.easeOut(duration: 0.3)) {
                 self.isVisible = false
             }
         }
@@ -39,7 +39,7 @@ class NotificationManager {
     
     func dismiss() {
         workItem?.cancel()
-        withAnimation(.easeInOut(duration: 0.3)) {
+        withAnimation(.easeOut(duration: 0.3)) {
             isVisible = false
         }
         // Clear action properties

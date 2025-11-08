@@ -78,7 +78,7 @@ struct SpendingTrendsSection: View {
 
                     // Label mode toggle button
                     Button(action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(.easeOut(duration: 0.2)) {
                             labelMode = labelMode == .percentage ? .amount : .percentage
                         }
                         HapticManager.shared.buttonTap()
@@ -184,21 +184,21 @@ struct MonthlySpendingNormalizedChart: View {
                 }
                 .onAppear {
                     showBars = false
-                    withAnimation(.spring(response: 1.0, dampingFraction: 0.7).delay(0.2)) {
+                    withAnimation(.easeOut(duration: 1.0).delay(0.2)) {
                         showBars = true
                     }
                 }
                 .onChange(of: period) { _, _ in
                     // Reset animation when period changes
                     showBars = false
-                    withAnimation(.spring(response: 1.0, dampingFraction: 0.7).delay(0.2)) {
+                    withAnimation(.easeOut(duration: 1.0).delay(0.2)) {
                         showBars = true
                     }
                 }
                 .onChange(of: dataPoints.count) { _, _ in
                     // Reset animation when data count changes
                     showBars = false
-                    withAnimation(.spring(response: 1.0, dampingFraction: 0.7).delay(0.2)) {
+                    withAnimation(.easeOut(duration: 1.0).delay(0.2)) {
                         showBars = true
                     }
                 }
@@ -291,12 +291,12 @@ struct VerticalBarView: View {
         .frame(width: barWidth, height: 200)
         .onAppear {
             let randomDelay = Double.random(in: 0.0...0.4)
-            withAnimation(.spring(response: 1.0, dampingFraction: 0.7).delay(randomDelay)) {
+            withAnimation(.easeOut(duration: 1.0).delay(randomDelay)) {
                 animatedHeight = showBar ? barHeight : 0
             }
         }
         .onChange(of: showBar) { _, newValue in
-            withAnimation(.spring(response: 1.0, dampingFraction: 0.7)) {
+            withAnimation(.easeOut(duration: 1.0)) {
                 animatedHeight = newValue ? barHeight : 0
             }
         }
@@ -643,12 +643,12 @@ struct OverviewHeroCard: View {
                                     )
                                     .frame(width: 80, height: 80)
                                     .rotationEffect(.degrees(-90))
-                                    .animation(.easeInOut(duration: 1.2), value: animatedSpentPercentage)
+                                    .animation(.easeOut(duration: 1.2), value: animatedSpentPercentage)
 
                                 // Percentage text in center
                                 DSText("\(Int(spentPercentage * 100))%", font: .dsTitle, color: theme.colors.textPrimary)
                                     .fontWeight(.bold)
-                                    .animation(.easeInOut(duration: 0.8), value: spentPercentage)
+                                    .animation(.easeOut(duration: 0.8), value: spentPercentage)
                             }
 
                             DSText("spent in\n\(budgetManager.getAllTransactions().count) transactions", font: .dsCaption, color: theme.colors.textSecondary)
@@ -664,12 +664,12 @@ struct OverviewHeroCard: View {
             .frame(height: 160)
         }
         .onAppear {
-            withAnimation(.easeInOut(duration: 1.2).delay(0.3)) {
+            withAnimation(.easeOut(duration: 1.2).delay(0.3)) {
                 animatedSpentPercentage = spentPercentage
             }
         }
         .onChange(of: spentPercentage) { _, newValue in
-            withAnimation(.easeInOut(duration: 0.8)) {
+            withAnimation(.easeOut(duration: 0.8)) {
                 animatedSpentPercentage = newValue
             }
         }
@@ -749,7 +749,7 @@ struct CategoryGroupBarChart: View {
                     let barAnimationDuration = 1.2
                     let textDelay = baseDelay + (barAnimationDuration * 0.8)
 
-                    withAnimation(.easeInOut(duration: 0.3).delay(textDelay)) {
+                    withAnimation(.easeOut(duration: 0.3).delay(textDelay)) {
                         showText = true
                     }
                 }
@@ -811,12 +811,12 @@ struct CategoryGroupBarRow: View {
             let randomDelay = Double.random(in: 0.1...0.8)
 
             // Animate the bar
-            withAnimation(.spring(response: 1.2, dampingFraction: 0.6, blendDuration: 0.3).delay(randomDelay)) {
+            withAnimation(.easeOut(duration: 1.2).delay(randomDelay)) {
                 animatedSpent = spent
             }
         }
         .onChange(of: spent) { _, newValue in
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.6, blendDuration: 0.2)) {
+            withAnimation(.easeOut(duration: 0.8)) {
                 animatedSpent = newValue
             }
         }

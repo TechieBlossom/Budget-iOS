@@ -161,7 +161,7 @@ struct DSBudgetPeriodManagementView: View {
         }
         .padding(.top, DSSpacing.md)
         .background(theme.colors.background)
-        .animation(.easeInOut(duration: 0.3), value: budgetType)
+        .animation(.easeOut(duration: 0.3), value: budgetType)
         .onAppear {
             initializeState()
         }

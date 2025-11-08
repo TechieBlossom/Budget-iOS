@@ -257,7 +257,7 @@ struct DSAlertBanner: View {
                     if value.translation.height < -50 {
                         dismissWithAnimation()
                     } else {
-                        withAnimation(.bouncy) {
+                        withAnimation(.easeOut(duration: 0.3)) {
                             dragOffset = .zero
                         }
                     }
@@ -276,13 +276,13 @@ struct DSAlertBanner: View {
     }
 
     private func showWithAnimation() {
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+        withAnimation(.easeOut(duration: 0.6)) {
             isVisible = true
         }
     }
 
     private func dismissWithAnimation() {
-        withAnimation(.easeInOut(duration: 0.3)) {
+        withAnimation(.easeOut(duration: 0.3)) {
             isVisible = false
         }
 

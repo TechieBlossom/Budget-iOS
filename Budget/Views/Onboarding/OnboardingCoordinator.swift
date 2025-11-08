@@ -21,7 +21,7 @@ struct OnboardingCoordinator: View {
                     CurrencySelectionView(
                         onboardingState: onboardingState,
                         onBack: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
+                            withAnimation(.easeOut(duration: 0.3)) {
                                 onboardingState.goToPreviousStep()
                             }
                         }
@@ -31,7 +31,7 @@ struct OnboardingCoordinator: View {
                     DateSelectionView(
                         onboardingState: onboardingState,
                         onBack: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
+                            withAnimation(.easeOut(duration: 0.3)) {
                                 onboardingState.goToPreviousStep()
                             }
                         }
@@ -40,7 +40,7 @@ struct OnboardingCoordinator: View {
                     DateSelectionView(
                         onboardingState: onboardingState,
                         onBack: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
+                            withAnimation(.easeOut(duration: 0.3)) {
                                 onboardingState.goToPreviousStep()
                             }
                         }
@@ -49,7 +49,7 @@ struct OnboardingCoordinator: View {
                     CategorySetupView(
                         onboardingState: onboardingState,
                         onBack: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
+                            withAnimation(.easeOut(duration: 0.3)) {
                                 onboardingState.goToPreviousStep()
                             }
                         }
@@ -77,7 +77,7 @@ struct OnboardingCoordinator: View {
                                 DSIconButton(
                                     type: .next(progress: onboardingState.currentStep.progress)
                                 ) {
-                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                    withAnimation(.easeOut(duration: 0.3)) {
                                         onboardingState.goToNextStep()
                                     }
                                 }
@@ -92,7 +92,7 @@ struct OnboardingCoordinator: View {
             }
         }
         .background(theme.colors.background)
-        .animation(.easeInOut(duration: 0.3), value: onboardingState.currentStep)
+        .animation(.easeOut(duration: 0.3), value: onboardingState.currentStep)
     }
 }
 

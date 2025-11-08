@@ -38,14 +38,14 @@ struct DSIconButton: View {
                         .stroke(theme.colors.primary, lineWidth: strokeWidth)
                         .frame(width: outerSize, height: outerSize)
                         .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 0.5), value: progress)
+                        .animation(.easeOut(duration: 0.5), value: progress)
                 } else if case .complete(let progress) = type {
                     RoundedRectangle(cornerRadius: outerCornerRadius)
                         .trim(from: 0, to: progress)
                         .stroke(theme.colors.primary, lineWidth: strokeWidth)
                         .frame(width: outerSize, height: outerSize)
                         .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 0.5), value: progress)
+                        .animation(.easeOut(duration: 0.5), value: progress)
                 } else if case .add = type {
                     RoundedRectangle(cornerRadius: outerCornerRadius)
                         .trim(from: 0, to: 1.0)

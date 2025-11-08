@@ -37,7 +37,7 @@ struct ContentView: View {
                 )
                 .environment(authManager)
                 .opacity(showContentWithAnimation ? 1 : 0)
-                .animation(.easeIn(duration: 0.4), value: showContentWithAnimation)
+                .animation(.easeOut(duration: 0.4), value: showContentWithAnimation)
                 .overlay {
                     if showingBudgetExpired {
                         BudgetExpiredView(
@@ -220,7 +220,7 @@ struct ContentView: View {
             // Only show if user hasn't dismissed this specific budget
             let currentBudgetId = manager.currentBudget?.id.uuidString ?? ""
             if currentBudgetId != dismissedExpiredBudgetId {
-                withAnimation(.easeInOut(duration: 0.3)) {
+                withAnimation(.easeOut(duration: 0.3)) {
                     showingBudgetExpired = true
                 }
             }

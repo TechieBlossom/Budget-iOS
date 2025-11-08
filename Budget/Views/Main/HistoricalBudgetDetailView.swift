@@ -384,7 +384,7 @@ struct HistoricalBudgetDetailView: View {
     }
 
     private func toggleExpansion(for categoryId: UUID) {
-        withAnimation(.easeInOut(duration: 0.3)) {
+        withAnimation(.easeOut(duration: 0.3)) {
             if expandedCategories.contains(categoryId) {
                 expandedCategories.remove(categoryId)
             } else {
