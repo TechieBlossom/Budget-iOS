@@ -105,7 +105,7 @@ struct DSCategoryManagementView: View {
             ScrollView {
                 LazyVStack(spacing: DSSpacing.xl) {
                     // Iterate through all category groups
-                    ForEach(CategoryGroup.allCases) { group in
+                    ForEach(Array(CategoryGroup.allCases.enumerated()), id: \.element.rawValue) { index, group in
                         let subCategoriesInGroup = subCategories(for: group)
 
                         if !subCategoriesInGroup.isEmpty {
@@ -148,7 +148,7 @@ struct DSCategoryManagementView: View {
 
                                     // Add Category button for this group
                                     if let onAddCategoryWithGroup = onAddCategoryWithGroup {
-                                        DSButton("Add \(group.displayName) Category", style: .outline, size: .medium) {
+                                        DSButton("Add \(group.displayName) Category", style: .outline, size: .regular) {
                                             onAddCategoryWithGroup(group)
                                         }
                                         .padding(.top, DSSpacing.xxs)
