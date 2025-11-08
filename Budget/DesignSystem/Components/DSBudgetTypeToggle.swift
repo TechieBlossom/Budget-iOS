@@ -16,7 +16,7 @@ struct DSBudgetTypeToggle: View {
                 Toggle("", isOn: Binding(
                     get: { selectedBudgetType == .custom },
                     set: { newValue in
-                        withAnimation(.easeInOut(duration: 0.3)) {
+                        withAnimation(.easeOut(duration: 0.3)) {
                             selectedBudgetType = newValue ? .custom : .monthly
                         }
                         onToggle()

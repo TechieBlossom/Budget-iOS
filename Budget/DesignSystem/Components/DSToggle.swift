@@ -35,7 +35,7 @@ struct DSToggle: View {
                 .stroke(theme.colors.primary, lineWidth: 2)
         )
         .clipShape(RoundedRectangle(cornerRadius: 8))
-        .animation(.easeInOut(duration: 0.2), value: selectedIndex)
+        .animation(.easeOut(duration: 0.2), value: selectedIndex)
     }
 }
 

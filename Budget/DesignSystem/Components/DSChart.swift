@@ -101,7 +101,7 @@ struct DSBarChart: View {
         }
         .onAppear {
             if animated {
-                withAnimation(.easeInOut(duration: 1.0)) {
+                withAnimation(.easeOut(duration: 1.0)) {
                     animationProgress = 1.0
                 }
             } else {
@@ -177,7 +177,7 @@ struct DSLineChart: View {
                         }
                         .trim(from: 0, to: animated ? animationProgress : 1.0)
                         .stroke(theme.colors.primary, lineWidth: 2)
-                        .animation(.easeInOut(duration: 1.0), value: animationProgress)
+                        .animation(.easeOut(duration: 1.0), value: animationProgress)
                     }
 
                     // Data points
@@ -212,7 +212,7 @@ struct DSLineChart: View {
         .frame(height: height)
         .onAppear {
             if animated {
-                withAnimation(.easeInOut(duration: 1.2).delay(0.3)) {
+                withAnimation(.easeOut(duration: 1.2).delay(0.3)) {
                     animationProgress = 1.0
                 }
             } else {
@@ -311,7 +311,7 @@ struct DSPieChart: View {
         }
         .onAppear {
             if animated {
-                withAnimation(.easeInOut(duration: 1.5)) {
+                withAnimation(.easeOut(duration: 1.5)) {
                     animationProgress = 1.0
                 }
             } else {

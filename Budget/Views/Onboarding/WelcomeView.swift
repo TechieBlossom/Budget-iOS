@@ -52,7 +52,7 @@ struct WelcomeView: View {
                 // Get Started Button
                 DSButtonCard("GET STARTED", subtitle: "Begin with a fresh budget setup", style: .primary) {
                     onboardingState.userChoice = .start
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    withAnimation(.easeOut(duration: 0.3)) {
                         onboardingState.goToNextStep()
                     }
                 }

@@ -68,13 +68,13 @@ struct AllTransactionsView: View {
                 DSActiveFilterPillsView(
                     filters: activeFilterPills,
                     onRemoveFilter: { pillId in
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        withAnimation(.easeOut(duration: 0.3)) {
                             HapticManager.shared.lightImpact()
                             searchManager.removeFilterPill(pillId, categories: budgetManager.budget.categories)
                         }
                     },
                     onClearAll: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        withAnimation(.easeOut(duration: 0.3)) {
                             HapticManager.shared.lightImpact()
                             searchManager.clearSearch()
                         }

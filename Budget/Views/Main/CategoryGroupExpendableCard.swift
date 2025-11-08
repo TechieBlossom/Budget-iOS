@@ -224,7 +224,7 @@ struct SubCategoryAggregateRow: View {
         .buttonStyle(PlainButtonStyle())
         .scaleEffect(isPressed ? 0.98 : 1.0)
         .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
-            withAnimation(.easeInOut(duration: 0.1)) {
+            withAnimation(.easeOut(duration: 0.1)) {
                 isPressed = pressing
             }
         }, perform: {})

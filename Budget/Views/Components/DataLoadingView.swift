@@ -78,7 +78,7 @@ struct DataLoadingView: View {
             .clipped()
             .onAppear {
                 withAnimation(
-                    .linear(duration: 1.5)
+                    .easeOut(duration: 1.5)
                     .repeatForever(autoreverses: false)
                 ) {
                     isAnimating = true

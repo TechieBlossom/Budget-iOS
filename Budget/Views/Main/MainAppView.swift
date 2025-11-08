@@ -617,7 +617,7 @@ struct MainAppView: View {
     }
 
     private func toggleExpansion(for group: CategoryGroup) {
-        withAnimation(.easeInOut(duration: 0.3)) {
+        withAnimation(.easeOut(duration: 0.3)) {
             if expandedGroups.contains(group) {
                 expandedGroups.remove(group)
             } else {

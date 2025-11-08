@@ -21,7 +21,7 @@ struct DSCurrencyList: View {
                 LazyVStack(spacing: DSSpacing.sm) {
                     ForEach(filteredCurrencies, id: \.id) { currency in
                         Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(.easeOut(duration: 0.2)) {
                                 selectedCurrency = currency
                             }
                         }) {

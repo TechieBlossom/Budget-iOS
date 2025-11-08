@@ -101,12 +101,12 @@ struct CategoryDetailView: View {
                                                 )
                                                 .frame(width: 80, height: 80)
                                                 .rotationEffect(.degrees(-90))
-                                                .animation(.easeInOut(duration: 1.2), value: animatedSpentPercentage)
+                                                .animation(.easeOut(duration: 1.2), value: animatedSpentPercentage)
 
                                             // Percentage text in center
                                             DSText("\(Int(actualSpentPercentage * 100))%", font: .dsTitle, color: theme.colors.textPrimary)
                                                 .fontWeight(.bold)
-                                                .animation(.easeInOut(duration: 0.8), value: actualSpentPercentage)
+                                                .animation(.easeOut(duration: 0.8), value: actualSpentPercentage)
                                         }
 
                                         DSText("spent in\n\(categoryTransactions.count) transactions", font: .dsCaption, color: theme.colors.textSecondary)
@@ -121,12 +121,12 @@ struct CategoryDetailView: View {
                     }
                     .padding(.horizontal, DSSpacing.md)
                     .onAppear {
-                        withAnimation(.easeInOut(duration: 1.2).delay(0.3)) {
+                        withAnimation(.easeOut(duration: 1.2).delay(0.3)) {
                             animatedSpentPercentage = actualSpentPercentage
                         }
                     }
                     .onChange(of: actualSpentPercentage) { _, newValue in
-                        withAnimation(.easeInOut(duration: 0.8)) {
+                        withAnimation(.easeOut(duration: 0.8)) {
                             animatedSpentPercentage = newValue
                         }
                     }

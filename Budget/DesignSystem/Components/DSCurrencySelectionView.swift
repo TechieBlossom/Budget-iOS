@@ -46,7 +46,7 @@ struct DSCurrencySelectionView: View {
                 LazyVStack(spacing: DSSpacing.sm) {
                     ForEach(allCurrencies, id: \.id) { currency in
                         Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(.easeOut(duration: 0.2)) {
                                 selectedCurrency = currency
                             }
                         }) {
