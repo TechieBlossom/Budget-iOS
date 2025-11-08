@@ -618,7 +618,7 @@ class BudgetManager: BudgetManagerProtocol {
 
     var spentPercentage: Double {
         guard budget.totalAmount > 0 else { return 0 }
-        return min(1.0, totalSpent / budget.totalAmount)
+        return totalSpent / budget.totalAmount
     }
 
     // MARK: - Budget Analysis
@@ -644,7 +644,7 @@ class BudgetManager: BudgetManagerProtocol {
         let budgetAmount = totalBudgetAmount(excludingSavings: excludingSavings)
         guard budgetAmount > 0 else { return 0 }
         let spent = totalSpent(excludingSavings: excludingSavings)
-        return min(1.0, spent / budgetAmount)
+        return spent / budgetAmount
     }
 
     // MARK: - Budget Analysis with Category Group Filtering
@@ -682,7 +682,7 @@ class BudgetManager: BudgetManagerProtocol {
         let budgetAmount = totalBudgetAmount(excludingSavings: excludingSavings, selectedGroups: selectedGroups)
         guard budgetAmount > 0 else { return 0 }
         let spent = totalSpent(excludingSavings: excludingSavings, selectedGroups: selectedGroups)
-        return min(1.0, spent / budgetAmount)
+        return spent / budgetAmount
     }
 
     // MARK: - Sub-Category Level Calculations
@@ -703,7 +703,7 @@ class BudgetManager: BudgetManagerProtocol {
         let allocated = budget.categoryAmounts[subCategory.id.uuidString] ?? 0
         guard allocated > 0 else { return 0 }
         let spent = spentAmount(for: subCategory)
-        return min(1.0, spent / allocated)
+        return spent / allocated
     }
 
     func recentTransactions(for subCategory: SubCategory, limit: Int = 5) -> [Transaction] {
@@ -750,7 +750,7 @@ class BudgetManager: BudgetManagerProtocol {
         let allocated = allocatedAmount(for: group, excludingSavings: excludingSavings)
         guard allocated > 0 else { return 0 }
         let spent = spentAmount(for: group, excludingSavings: excludingSavings)
-        return min(1.0, spent / allocated)
+        return spent / allocated
     }
 
     func transactions(for subCategory: SubCategory) -> [Transaction] {
