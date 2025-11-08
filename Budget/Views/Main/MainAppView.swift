@@ -336,11 +336,6 @@ struct MainAppView: View {
                                 .foregroundColor(theme.colors.textPrimary)
                         }
                     }
-
-                    // Sync status indicator
-                    ToolbarItem(placement: .topBarLeading) {
-                        SyncStatusView(state: budgetManager.syncState)
-                    }
                 }
             }
         }
