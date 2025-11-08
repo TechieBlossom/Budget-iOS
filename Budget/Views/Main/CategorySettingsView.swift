@@ -16,6 +16,7 @@ struct CategorySettingsView: View {
     @State private var editingSubCategory: SubCategory?
     @State private var editingCategoryAmount: Double = 0
     @State private var refreshTrigger = 0
+    @State private var preSelectedCategoryGroup: CategoryGroup?
 
     init(currentBudget: Budget, budgetManager: any BudgetManagerProtocol, onUpdateBudget: @escaping (Budget) -> Void) {
         self.currentBudget = currentBudget
@@ -67,11 +68,13 @@ struct CategorySettingsView: View {
                 onAddCategory: {
                     editingSubCategory = nil
                     editingCategoryAmount = 0
+                    preSelectedCategoryGroup = nil
                     showingAddCategory = true
                 },
                 onEditCategory: { subCategory in
                     editingSubCategory = subCategory
                     editingCategoryAmount = categoryAmounts[subCategory.id.uuidString] ?? 0
+                    preSelectedCategoryGroup = nil
                     showingAddCategory = true
                 },
                 onDeleteCategory: { subCategory in
@@ -80,6 +83,12 @@ struct CategorySettingsView: View {
                 },
                 onToggleCategoryType: { subCategory in
                     toggleCategoryType(for: subCategory)
+                },
+                onAddCategoryWithGroup: { group in
+                    editingSubCategory = nil
+                    editingCategoryAmount = 0
+                    preSelectedCategoryGroup = group
+                    showingAddCategory = true
                 }
             )
             .id(refreshTrigger)
@@ -117,6 +126,7 @@ struct CategorySettingsView: View {
                 allocatedAmount: editingCategoryAmount,
                 currency: currentBudget.currency,
                 budgetManager: budgetManager,
+                preSelectedGroup: preSelectedCategoryGroup,
                 onSuccess: {
                     // Reload budget data from Supabase after successful save
                     reloadBudgetData()
@@ -197,6 +207,7 @@ struct CategorySettingsView: View {
     private func clearAddCategoryState() {
         editingSubCategory = nil
         editingCategoryAmount = 0
+        preSelectedCategoryGroup = nil
         showingAddCategory = false
     }
 
