@@ -34,7 +34,7 @@ class HistoricalBudgetManager: BudgetManagerProtocol {
     var spentPercentage: Double {
         let total = totalBudgetAmount(excludingSavings: false)
         guard total > 0 else { return 0 }
-        return min(1.0, totalSpent / total)
+        return totalSpent / total
     }
 
     // MARK: - Budget Analysis
@@ -68,7 +68,7 @@ class HistoricalBudgetManager: BudgetManagerProtocol {
     func spentPercentage(excludingSavings: Bool) -> Double {
         let total = totalBudgetAmount(excludingSavings: excludingSavings)
         guard total > 0 else { return 0 }
-        return min(1.0, totalSpent(excludingSavings: excludingSavings) / total)
+        return totalSpent(excludingSavings: excludingSavings) / total
     }
 
     // MARK: - Sub-Category Methods
@@ -85,7 +85,7 @@ class HistoricalBudgetManager: BudgetManagerProtocol {
     func spentPercentage(for subCategory: SubCategory) -> Double {
         let allocated = budget.categoryAmounts[subCategory.id.uuidString] ?? 0
         guard allocated > 0 else { return 0 }
-        return min(1.0, spentAmount(for: subCategory) / allocated)
+        return spentAmount(for: subCategory) / allocated
     }
 
     func recentTransactions(for subCategory: SubCategory, limit: Int) -> [Transaction] {
@@ -116,7 +116,7 @@ class HistoricalBudgetManager: BudgetManagerProtocol {
     func spentPercentage(for group: CategoryGroup, excludingSavings: Bool) -> Double {
         let allocated = allocatedAmount(for: group, excludingSavings: excludingSavings)
         guard allocated > 0 else { return 0 }
-        return min(1.0, spentAmount(for: group, excludingSavings: excludingSavings) / allocated)
+        return spentAmount(for: group, excludingSavings: excludingSavings) / allocated
     }
 
     func subCategories(for group: CategoryGroup) -> [SubCategory] {

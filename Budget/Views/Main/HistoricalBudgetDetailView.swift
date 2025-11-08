@@ -85,7 +85,7 @@ class HistoricalBudgetDetailViewModel {
     /// Calculate spent percentage
     var spentPercentage: Double {
         guard totalBudgetAmount > 0 else { return 0 }
-        return min(1.0, totalSpent / totalBudgetAmount)
+        return totalSpent / totalBudgetAmount
     }
 
     /// Create a BudgetManager adapter for historical budget viewing

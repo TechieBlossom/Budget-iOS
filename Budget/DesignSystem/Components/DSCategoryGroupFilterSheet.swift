@@ -11,6 +11,10 @@ struct DSCategoryGroupFilterSheet: View {
         self._tempSelectedGroups = State(initialValue: preferences.selectedGroups)
     }
 
+    private var hasChanges: Bool {
+        tempSelectedGroups != preferences.selectedGroups
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -64,13 +68,15 @@ struct DSCategoryGroupFilterSheet: View {
                         }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Image(systemName: "checkmark")
-                        .font(.dsHeadline)
-                        .foregroundColor(theme.colors.primary)
-                        .onTapGesture {
-                            HapticManager.shared.buttonTap()
-                            saveAndDismiss()
-                        }
+                    Button(action: {
+                        HapticManager.shared.buttonTap()
+                        saveAndDismiss()
+                    }) {
+                        Image(systemName: "checkmark")
+                            .font(.dsHeadline)
+                            .foregroundColor(hasChanges ? theme.colors.primary : theme.colors.textSecondary.opacity(0.3))
+                    }
+                    .disabled(!hasChanges)
                 }
             }
         }

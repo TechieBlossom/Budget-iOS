@@ -99,7 +99,7 @@ struct BudgetOverviewCard: View {
                                     // Progress fill (from bottom to top)
                                     Rectangle()
                                         .fill(theme.colors.primary)
-                                        .frame(height: max(0, progressGeometry.size.height * min(1.0, max(0, budgetManager.spentPercentage))))
+                                        .frame(height: max(0, progressGeometry.size.height * max(0, budgetManager.spentPercentage)))
                                         .animation(.easeOut(duration: 0.8), value: budgetManager.spentPercentage)
 
                                     DSText("\(Int(budgetManager.spentPercentage * 100))%", font: .dsTitle, color: theme.colors.surface)
