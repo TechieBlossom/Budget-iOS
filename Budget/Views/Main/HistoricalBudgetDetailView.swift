@@ -87,6 +87,13 @@ class HistoricalBudgetDetailViewModel {
         guard totalBudgetAmount > 0 else { return 0 }
         return min(1.0, totalSpent / totalBudgetAmount)
     }
+
+    /// Create a BudgetManager adapter for historical budget viewing
+    func createBudgetManager(for budget: SupabaseBudget) -> HistoricalBudgetManager {
+        let domainBudget = budget.toBudget(categories: categories)
+        let domainTransactions = transactions.map { $0.toTransaction() }
+        return HistoricalBudgetManager(budget: domainBudget, transactions: domainTransactions)
+    }
 }
 
 /// Read-only detail view for a historical budget
@@ -97,6 +104,7 @@ struct HistoricalBudgetDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = HistoricalBudgetDetailViewModel()
     @State private var expandedCategories: Set<UUID> = []
+    @State private var showAllTransactions = false
 
     private var budgetPeriod: String {
         let formatter = DateFormatter()
@@ -170,6 +178,11 @@ struct HistoricalBudgetDetailView: View {
                             categoriesSection
                         }
 
+                        // View All Transactions section
+                        if !viewModel.transactions.isEmpty {
+                            viewAllTransactionsSection
+                        }
+
                         // Bottom spacing
                         Rectangle()
                             .fill(Color.clear)
@@ -194,6 +207,14 @@ struct HistoricalBudgetDetailView: View {
         }
         .task {
             await viewModel.fetchBudgetDetails(budgetId: budget.id)
+        }
+        .navigationDestination(isPresented: $showAllTransactions) {
+            if !viewModel.categories.isEmpty && !viewModel.transactions.isEmpty {
+                AllTransactionsView(
+                    budgetManager: viewModel.createBudgetManager(for: budget),
+                    isReadOnly: true
+                )
+            }
         }
     }
 
@@ -270,6 +291,47 @@ struct HistoricalBudgetDetailView: View {
                 }
                 .padding(.horizontal, DSSpacing.md)
                 .padding(.vertical, DSSpacing.md)
+            }
+            .padding(.horizontal, DSSpacing.md)
+        }
+    }
+
+    // MARK: - View All Transactions Section
+
+    private var viewAllTransactionsSection: some View {
+        VStack(spacing: DSSpacing.md) {
+            DSCard {
+                Button(action: {
+                    showAllTransactions = true
+                }) {
+                    HStack(spacing: DSSpacing.md) {
+                        // Icon
+                        Image(systemName: "list.bullet.rectangle")
+                            .font(.dsTitle)
+                            .foregroundColor(theme.colors.primary)
+                            .frame(width: 40, height: 40)
+                            .background(theme.colors.primary.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                        // Info
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                            DSText("View All Transactions", font: .dsHeadline, color: theme.colors.textPrimary)
+                                .fontWeight(.medium)
+
+                            DSText("See all \(viewModel.transactions.count) transactions with search and filters", font: .dsCaption, color: theme.colors.textSecondary)
+                        }
+
+                        Spacer()
+
+                        // Chevron
+                        Image(systemName: "chevron.right")
+                            .font(.dsSubtitle)
+                            .foregroundColor(theme.colors.textSecondary)
+                    }
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.sm)
+                }
+                .buttonStyle(PlainButtonStyle())
             }
             .padding(.horizontal, DSSpacing.md)
         }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AllTransactionsView: View {
     let budgetManager: any BudgetManagerProtocol
+    var isReadOnly: Bool = false  // Flag for historical budget read-only mode
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
     @State private var transactionToEdit: Transaction?
@@ -143,7 +144,7 @@ struct AllTransactionsView: View {
                                 date: date,
                                 transactions: transactions,
                                 budgetManager: budgetManager,
-                                onEditTransaction: { tx in
+                                onEditTransaction: isReadOnly ? nil : { tx in
                                     transactionToEdit = tx
                                 }
                             )
@@ -188,14 +189,17 @@ struct AllTransactionsView: View {
                 DefaultToolbarItem(kind: .search, placement: .bottomBar)
                 ToolbarSpacer(.flexible, placement: .bottomBar)
             }
-            ToolbarItem(placement: .bottomBar) {
-                Image(systemName: "plus.circle")
-                    .font(.dsHeadline)
-                    .foregroundColor(hasActiveFilters ? theme.colors.primary : theme.colors.textPrimary)
-                    .onTapGesture {
-                        HapticManager.shared.lightImpact()
-                        showAddTransaction = true
-                    }
+            // Only show add button if not in read-only mode
+            if !isReadOnly {
+                ToolbarItem(placement: .bottomBar) {
+                    Image(systemName: "plus.circle")
+                        .font(.dsHeadline)
+                        .foregroundColor(hasActiveFilters ? theme.colors.primary : theme.colors.textPrimary)
+                        .onTapGesture {
+                            HapticManager.shared.lightImpact()
+                            showAddTransaction = true
+                        }
+                }
             }
         }
         .searchable(
@@ -269,7 +273,7 @@ struct TransactionDateSection: View {
     let date: Date
     let transactions: [Transaction]
     let budgetManager: any BudgetManagerProtocol
-    let onEditTransaction: (Transaction) -> Void
+    let onEditTransaction: ((Transaction) -> Void)?  // Optional for read-only mode
     @Environment(\.appTheme) private var theme
     
     private var dateFormatter: DateFormatter {
@@ -312,9 +316,9 @@ struct TransactionDateSection: View {
                     TransactionRowView(
                         transaction: transaction,
                         budgetManager: budgetManager,
-                        onEditTransaction: {
-                            onEditTransaction(transaction)
-                        }
+                        onEditTransaction: onEditTransaction != nil ? {
+                            onEditTransaction?(transaction)
+                        } : nil
                     )
                     .padding(.horizontal, DSSpacing.md)
                 }
@@ -336,50 +340,55 @@ struct TransactionRowView: View {
 
 
     var body: some View {
-        Button(action: {
-            onEditTransaction?()
-        }) {
-            HStack(spacing: 0) {
-                // Color Border (like expandable card)
-                Rectangle()
-                    .fill(subCategory?.categoryGroup.color ?? theme.colors.textSecondary)
-                    .frame(width: 8)
-                    .cornerRadius(8, corners: [.topLeft, .bottomLeft])
+        let content = HStack(spacing: 0) {
+            // Color Border (like expandable card)
+            Rectangle()
+                .fill(subCategory?.categoryGroup.color ?? theme.colors.textSecondary)
+                .frame(width: 8)
+                .cornerRadius(8, corners: [.topLeft, .bottomLeft])
 
-                VStack(spacing: DSSpacing.xs) {
-                    // Transaction header
-                    HStack(alignment: .bottom) {
-                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                            DSText(transaction.name.isEmpty ? "Expense" : transaction.name, font: .dsHeadline, color: theme.colors.textPrimary)
-                                .lineLimit(1)
-                                .onAppear {
-                                    print("🔍 Displaying transaction: ID=\(transaction.id), Name='\(transaction.name)', isEmpty=\(transaction.name.isEmpty)")
-                                }
-                            HStack(spacing: DSSpacing.xxs) {
-                                DSText(subCategory?.name ?? "Unknown", font: .dsCaption, color: theme.colors.textSecondary)
-                                if let subCategory = subCategory {
-                                    DSText("•", font: .dsCaption, color: theme.colors.textSecondary)
-                                    DSText(subCategory.categoryGroup.displayName, font: .dsCaption, color: theme.colors.textSecondary)
-                                }
+            VStack(spacing: DSSpacing.xs) {
+                // Transaction header
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        DSText(transaction.name.isEmpty ? "Expense" : transaction.name, font: .dsHeadline, color: theme.colors.textPrimary)
+                            .lineLimit(1)
+                            .onAppear {
+                                print("🔍 Displaying transaction: ID=\(transaction.id), Name='\(transaction.name)', isEmpty=\(transaction.name.isEmpty)")
+                            }
+                        HStack(spacing: DSSpacing.xxs) {
+                            DSText(subCategory?.name ?? "Unknown", font: .dsCaption, color: theme.colors.textSecondary)
+                            if let subCategory = subCategory {
+                                DSText("•", font: .dsCaption, color: theme.colors.textSecondary)
+                                DSText(subCategory.categoryGroup.displayName, font: .dsCaption, color: theme.colors.textSecondary)
                             }
                         }
+                    }
 
-                        Spacer()
+                    Spacer()
 
-                        VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
-                            DSText(String(format: "%.2f", transaction.amount), font: .dsBody, color: theme.colors.textPrimary)
-                                .fontWeight(.medium)
-                            DSText(budgetManager.budget.currency.code, font: .dsCaption, color: theme.colors.textSecondary)
-                        }
+                    VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
+                        DSText(String(format: "%.2f", transaction.amount), font: .dsBody, color: theme.colors.textPrimary)
+                            .fontWeight(.medium)
+                        DSText(budgetManager.budget.currency.code, font: .dsCaption, color: theme.colors.textSecondary)
                     }
                 }
-                .padding(.horizontal, DSSpacing.md)
-                .padding(.vertical, DSSpacing.md)
             }
-            .background(theme.colors.surface)
-            .cornerRadius(8)
+            .padding(.horizontal, DSSpacing.md)
+            .padding(.vertical, DSSpacing.md)
         }
-        .buttonStyle(PlainButtonStyle())
+        .background(theme.colors.surface)
+        .cornerRadius(8)
+
+        // Conditionally wrap in button or return content directly
+        if let editAction = onEditTransaction {
+            Button(action: editAction) {
+                content
+            }
+            .buttonStyle(PlainButtonStyle())
+        } else {
+            content
+        }
     }
 }
 
