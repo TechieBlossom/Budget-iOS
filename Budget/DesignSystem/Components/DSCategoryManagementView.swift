@@ -105,7 +105,7 @@ struct DSCategoryManagementView: View {
             ScrollView {
                 LazyVStack(spacing: DSSpacing.xl) {
                     // Iterate through all category groups
-                    ForEach(Array(CategoryGroup.allCases)) { group in
+                    ForEach(CategoryGroup.allCases, id: \.id) { group in
                         let subCategoriesInGroup = subCategories(for: group)
 
                         if !subCategoriesInGroup.isEmpty {
