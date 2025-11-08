@@ -1,7 +1,6 @@
 import SwiftUI
 
 enum ThemePreference: String, Codable, CaseIterable {
-    case system = "System"
     case light = "Light"
     case dark = "Dark"
 
@@ -13,7 +12,7 @@ enum ThemePreference: String, Codable, CaseIterable {
 @Observable
 class AppTheme {
     var colorScheme: ColorScheme = .light
-    var themePreference: ThemePreference = .system {
+    var themePreference: ThemePreference = .light {
         didSet {
             UserDefaults.standard.set(themePreference.rawValue, forKey: "themePreference")
         }
@@ -31,8 +30,6 @@ class AppTheme {
 
     func updateColorScheme(systemScheme: ColorScheme) {
         switch themePreference {
-        case .system:
-            colorScheme = systemScheme
         case .light:
             colorScheme = .light
         case .dark:

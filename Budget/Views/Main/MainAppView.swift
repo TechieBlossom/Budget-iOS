@@ -22,11 +22,9 @@ struct MainAppView: View {
     @State private var expandedGroups: Set<CategoryGroup> = []
     @State private var showingAddTransaction = false
     @State private var transactionToEdit: Transaction?
-    @State private var showingBudgetEdit = false
     @State private var showingEndBudgetConfirmation = false
     @State private var notificationManager = NotificationManager()
-    @StateObject private var analysisViewModel: AnalysisViewModel
-    @State private var expensesOnlyMode = true  // On by default
+    @State private var expensesOnlyMode = false  // User controls visibility via category group filter
     @StateObject private var categoryGroupPreferences = CategoryGroupPreferences()
     @State private var showingCategoryGroupFilter = false
     @State private var showingCurrencySettings = false
@@ -43,7 +41,6 @@ struct MainAppView: View {
     init(budgetManager: BudgetManager, showingBudgetSettings: Binding<Bool>) {
         self.budgetManager = budgetManager
         self._showingBudgetSettings = showingBudgetSettings
-        self._analysisViewModel = StateObject(wrappedValue: AnalysisViewModel(budgetManager: budgetManager))
     }
 
     private var sortedCategoryGroups: [CategoryGroup] {
@@ -134,9 +131,6 @@ struct MainAppView: View {
             }
             .navigationDestination(isPresented: $showingAllTransactions) {
                 AllTransactionsView(budgetManager: budgetManager)
-            }
-            .fullScreenCover(isPresented: $showingBudgetEdit) {
-                BudgetEditView(budgetManager: budgetManager, onBudgetUpdated: {})
             }
             .sheet(isPresented: $showingCategoryGroupFilter) {
                 DSCategoryGroupFilterSheet(preferences: categoryGroupPreferences)
@@ -366,7 +360,7 @@ struct MainAppView: View {
                     VStack(alignment: .leading, spacing: DSSpacing.md) {
                         // Heading
                         HStack {
-                            DSText("Spending by Category", font: .dsSmallTitle, color: theme.colors.textPrimary)
+                            DSText("Completion by Category", font: .dsSmallTitle, color: theme.colors.textPrimary)
                             Spacer()
                         }
                         .padding(.horizontal, DSSpacing.md)
@@ -381,18 +375,16 @@ struct MainAppView: View {
  
                     // All Transactions Link
                     if !budgetManager.getAllTransactions().isEmpty {
-                        VStack(spacing: DSSpacing.md) {
-                            DSButtonCard(
-                                "View All \(budgetManager.getAllTransactions().count) Transactions",
-                                subtitle: "\(budgetManager.getAllTransactions().count) transactions"
-                            ) {
-                                HapticManager.shared.buttonTap()
-                                Task { @MainActor in
-                                    showingAllTransactions = true
-                                }
+                        DSButton(
+                            "View All Transactions",
+                            fullWidth: true
+                        ) {
+                            HapticManager.shared.buttonTap()
+                            Task { @MainActor in
+                                showingAllTransactions = true
                             }
-                            .padding(.horizontal, DSSpacing.md)
                         }
+                        .padding(.horizontal, DSSpacing.md)
                     }
 
                     // Spends Section
@@ -503,11 +495,6 @@ struct MainAppView: View {
                     ThemeSettingsSection()
                         .padding(.horizontal, DSSpacing.md)
 
-                    // Divider
-                    Divider()
-                        .padding(.vertical, DSSpacing.xs)
-                        .padding(.horizontal, DSSpacing.md)
-
                     // Historical Budgets Section (only show if authenticated)
                     SettingsSection(
                         title: "Historical Budgets",
@@ -520,23 +507,8 @@ struct MainAppView: View {
                     }
                     .padding(.horizontal, DSSpacing.md)
 
-                    // Divider
-                    Divider()
-                        .padding(.vertical, DSSpacing.xs)
-                        .padding(.horizontal, DSSpacing.md)
-
                     // Sync Section
                     SyncSection(budgetManager: budgetManager)
-                        .padding(.horizontal, DSSpacing.md)
-
-                    // Divider
-                    Divider()
-                        .padding(.vertical, DSSpacing.xs)
-                        .padding(.horizontal, DSSpacing.md)
-
-                    // Divider
-                    Divider()
-                        .padding(.vertical, DSSpacing.xs)
                         .padding(.horizontal, DSSpacing.md)
 
                     // Sign Out Section
@@ -545,13 +517,8 @@ struct MainAppView: View {
                     }
                     .padding(.horizontal, DSSpacing.md)
 
-                    // Divider
+                    // End Budget Section (only for current budget)
                     if budgetManager.isViewingMostRecentBudget() {
-                        Divider()
-                            .padding(.vertical, DSSpacing.xs)
-                            .padding(.horizontal, DSSpacing.md)
-
-                        // End Budget Section (only for current budget)
                         EndBudgetSection {
                             showingEndBudgetConfirmation = true
                         }
@@ -635,66 +602,33 @@ struct ThemeSettingsSection: View {
 
     var body: some View {
         DSCard(padding: 8) {
-            VStack(alignment: .leading, spacing: DSSpacing.md) {
+            HStack(alignment: .center, spacing: DSSpacing.md) {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     DSText("Theme", font: .dsHeadline, color: theme.colors.textPrimary)
                     DSText("Choose your app appearance", font: .dsCaption, color: theme.colors.textSecondary)
                 }
 
+                Spacer()
+
                 HStack(spacing: DSSpacing.sm) {
-                    ForEach(ThemePreference.allCases, id: \.self) { preference in
-                        ThemeButton(preference: preference, systemColorScheme: systemColorScheme)
-                    }
+                    Image(systemName: theme.themePreference == .light ? "sun.max.fill" : "moon.fill")
+                        .font(.dsBody)
+                        .foregroundColor(theme.colors.textSecondary)
+
+                    Toggle("", isOn: Binding(
+                        get: { theme.themePreference == .dark },
+                        set: { isDark in
+                            HapticManager.shared.buttonTap()
+                            theme.themePreference = isDark ? .dark : .light
+                            theme.updateColorScheme(systemScheme: systemColorScheme)
+                        }
+                    ))
+                    .labelsHidden()
+                    .tint(theme.colors.primary)
                 }
             }
             .padding(.horizontal, DSSpacing.sm)
             .padding(.vertical, DSSpacing.sm)
-        }
-    }
-}
-
-struct ThemeButton: View {
-    let preference: ThemePreference
-    let systemColorScheme: ColorScheme
-    @Environment(\.appTheme) private var theme
-
-    private var isSelected: Bool {
-        theme.themePreference == preference
-    }
-
-    var body: some View {
-        Button(action: {
-            HapticManager.shared.buttonTap()
-            theme.themePreference = preference
-            theme.updateColorScheme(systemScheme: systemColorScheme)
-        }) {
-            VStack(spacing: DSSpacing.xs) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(isSelected ? theme.colors.primary.opacity(0.1) : theme.colors.surfaceVariant)
-                        .frame(height: 60)
-
-                    Image(systemName: iconName)
-                        .font(.dsTitle)
-                        .foregroundColor(isSelected ? theme.colors.primary : theme.colors.textSecondary)
-                }
-
-                DSText(preference.displayName, font: .dsCaption, color: isSelected ? theme.colors.primary : theme.colors.textSecondary)
-                    .fontWeight(isSelected ? .semibold : .regular)
-            }
-        }
-        .buttonStyle(PlainButtonStyle())
-        .frame(maxWidth: .infinity)
-    }
-
-    private var iconName: String {
-        switch preference {
-        case .system:
-            return "gearshape.fill"
-        case .light:
-            return "sun.max.fill"
-        case .dark:
-            return "moon.fill"
         }
     }
 }

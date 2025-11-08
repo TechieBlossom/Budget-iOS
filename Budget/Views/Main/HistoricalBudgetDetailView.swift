@@ -168,25 +168,6 @@ struct HistoricalBudgetDetailView: View {
                 // Budget details with Budget Tab layout
                 ScrollView {
                     VStack(spacing: DSSpacing.xl) {
-                        // Info banner
-                        DSCard {
-                            HStack(spacing: DSSpacing.sm) {
-                                Image(systemName: "info.circle.fill")
-                                    .font(.dsTitle)
-                                    .foregroundColor(theme.colors.primary)
-
-                                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                                    DSText("Historical Budget", font: .dsBody, color: theme.colors.textPrimary)
-                                        .fontWeight(.medium)
-                                    DSText("This budget is read-only and cannot be edited", font: .dsCaption, color: theme.colors.textSecondary)
-                                }
-
-                                Spacer()
-                            }
-                            .padding(.horizontal, DSSpacing.sm)
-                            .padding(.vertical, DSSpacing.sm)
-                        }
-                        .padding(.horizontal, DSSpacing.md)
 
                         // Budget Overview Section (matching Budget Tab)
                         VStack(spacing: DSSpacing.md) {
@@ -210,7 +191,7 @@ struct HistoricalBudgetDetailView: View {
                         VStack(alignment: .leading, spacing: DSSpacing.md) {
                             // Heading
                             HStack {
-                                DSText("Spending by Category", font: .dsSmallTitle, color: theme.colors.textPrimary)
+                                DSText("Completion by Category", font: .dsSmallTitle, color: theme.colors.textPrimary)
                                 Spacer()
                             }
                             .padding(.horizontal, DSSpacing.md)
@@ -225,15 +206,13 @@ struct HistoricalBudgetDetailView: View {
 
                         // All Transactions Link (matching Budget Tab)
                         if !viewModel.transactions.isEmpty {
-                            VStack(spacing: DSSpacing.md) {
-                                DSButtonCard(
-                                    "View All \(viewModel.transactions.count) Transactions",
-                                    subtitle: "\(viewModel.transactions.count) transactions"
-                                ) {
-                                    showAllTransactions = true
-                                }
-                                .padding(.horizontal, DSSpacing.md)
+                            DSButton(
+                                "View All Transactions",
+                                fullWidth: true
+                            ) {
+                                showAllTransactions = true
                             }
+                            .padding(.horizontal, DSSpacing.md)
                         }
 
                         // Spends Section (matching Budget Tab)

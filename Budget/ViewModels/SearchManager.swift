@@ -53,14 +53,6 @@ struct DateRange {
 
 class SearchManager: ObservableObject {
     @Published var searchCriteria = SearchCriteria()
-    @Published var searchHistory: [String] = []
-
-    private let userDefaults = UserDefaults.standard
-    private let maxHistoryItems = 10
-
-    init() {
-        loadSearchHistory()
-    }
 
     // MARK: - Filtering Methods
 
@@ -122,11 +114,6 @@ class SearchManager: ObservableObject {
 
     func updateSearchQuery(_ query: String) {
         searchCriteria.query = query
-
-        // Save to history if it's a meaningful search
-        if !query.isEmpty && query.count >= 2 {
-            saveToSearchHistory(query)
-        }
     }
 
     func clearSearch() {
@@ -198,33 +185,6 @@ class SearchManager: ObservableObject {
         case .last30Days:
             setDateRange(.last30Days)
         }
-    }
-
-    // MARK: - Search History Management
-
-    private func saveToSearchHistory(_ query: String) {
-        // Remove if already exists to move to top
-        searchHistory.removeAll { $0.lowercased() == query.lowercased() }
-
-        // Add to beginning
-        searchHistory.insert(query, at: 0)
-
-        // Limit to max items
-        if searchHistory.count > maxHistoryItems {
-            searchHistory = Array(searchHistory.prefix(maxHistoryItems))
-        }
-
-        // Save to UserDefaults
-        userDefaults.set(searchHistory, forKey: "SearchHistory")
-    }
-
-    private func loadSearchHistory() {
-        searchHistory = userDefaults.array(forKey: "SearchHistory") as? [String] ?? []
-    }
-
-    func clearSearchHistory() {
-        searchHistory.removeAll()
-        userDefaults.removeObject(forKey: "SearchHistory")
     }
 
     // MARK: - Filter Pills Data

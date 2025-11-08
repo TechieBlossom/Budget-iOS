@@ -301,15 +301,13 @@ struct SyncSection: View {
 
     var body: some View {
         DSCard(padding: 8) {
-            VStack(spacing: DSSpacing.md) {
-                HStack(alignment: .center) {
-                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                        DSText("Sync Status", font: .dsHeadline, color: theme.colors.textPrimary)
-                        DSText(lastSyncText, font: .dsCaption, color: theme.colors.textSecondary)
-                    }
-
-                    Spacer()
+            HStack(alignment: .center, spacing: DSSpacing.md) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    DSText("Sync Status", font: .dsHeadline, color: theme.colors.textPrimary)
+                    DSText(lastSyncText, font: .dsCaption, color: theme.colors.textSecondary)
                 }
+
+                Spacer()
 
                 // Sync now button
                 DSButton("Sync Now", style: .outline) {
@@ -353,8 +351,3 @@ struct SignOutSection: View {
         .buttonStyle(PlainButtonStyle())
     }
 }
-
-// Preview disabled due to BudgetManager initialization complexity
-// #Preview {
-//     BudgetSettingsView(budgetManager: BudgetManager(...))
-// }

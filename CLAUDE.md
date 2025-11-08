@@ -156,7 +156,7 @@ Card: #F2F2F2
 - **MainAppView**: Main app coordinator handling budget overview, category management, and transaction flow
 
 ### Main App Components
-- **BudgetOverviewCard**: Summary card showing total budget, spent, remaining with vertical progress
+- **OverviewHeroCard**: Summary card showing total budget, spent, remaining with circular progress indicator
 - **CategoryExpendableCard**: Expandable category cards showing transactions and progress bars
 - **TransactionRow**: Individual transaction display within expanded categories
 

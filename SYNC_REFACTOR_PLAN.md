@@ -729,7 +729,7 @@ struct MainAppView: View {
     var body: some View {
         NavigationStack {
             VStack {
-                BudgetOverviewCard(...)
+                OverviewHeroCard(...)
                 // ... rest of content
             }
             .navigationTitle("Budget")

@@ -6,10 +6,20 @@ class MockBudgetManager: BudgetManagerProtocol {
     var currentBudget: Budget?
     var transactions: [Transaction] = []
     private var lastDeletedTransaction: Transaction?
-    
-    init(budget: Budget) {
+    private var customTotalSpent: Double?
+    private var customTotalRemains: Double?
+
+    init(budget: Budget, totalSpent: Double? = nil, totalRemains: Double? = nil, transactions: [Transaction]? = nil) {
         self.currentBudget = budget
-        generateSampleTransactions()
+        self.customTotalSpent = totalSpent
+        self.customTotalRemains = totalRemains
+
+        // Use provided transactions or generate sample ones
+        if let providedTransactions = transactions {
+            self.transactions = providedTransactions
+        } else if totalSpent == nil && totalRemains == nil {
+            generateSampleTransactions()
+        }
     }
     
     // MARK: - Budget Analysis (Computed Properties)
@@ -19,11 +29,11 @@ class MockBudgetManager: BudgetManagerProtocol {
     }
 
     var totalSpent: Double {
-        transactions.reduce(0) { $0 + $1.amount }
+        customTotalSpent ?? transactions.reduce(0) { $0 + $1.amount }
     }
 
     var totalRemains: Double {
-        max(0, budget.totalAmount - totalSpent)
+        customTotalRemains ?? max(0, budget.totalAmount - totalSpent)
     }
 
     var spentPercentage: Double {

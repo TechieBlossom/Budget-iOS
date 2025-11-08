@@ -56,17 +56,19 @@ struct CategoryGroupExpendableCard: View {
                             DSText(group.displayName, font: .dsHeadline, color: theme.colors.textPrimary)
                             Spacer()
                             Image(systemName: "chevron.down.2")
-                                .font(.dsBody)
+                                .font(.caption)
                                 .foregroundColor(theme.colors.textSecondary)
                                 .rotationEffect(.degrees(isExpanded ? 180 : 0))
                         }
                         
                         HStack(alignment: .bottom, spacing: DSSpacing.xxs) {
-                            DSText(String(format: "%.0f out of %.0f", spentAmount, allocatedAmount), font: .dsCaption, color: theme.colors.textPrimary)
-                            DSText(budgetManager.budget.currency.code, font: .dsCaption, color: theme.colors.textSecondary)
+                            let remaining = allocatedAmount - spentAmount
+                            let text = remaining < 0
+                                ? String(format: "%.0f \(budgetManager.budget.currency.code) overspent", abs(remaining))
+                                : String(format: "%.0f \(budgetManager.budget.currency.code) left", remaining)
+                            let textColor = remaining < 0 ? Color.red : theme.colors.textSecondary
+                            DSText(text, font: .dsSubtitle, color: textColor)
                             Spacer()
-                            DSText("\(Int(actualSpentPercentage * 100))%", font: .dsBody, color: theme.colors.textSecondary)
-                                .fontWeight(.bold)
                         }
                         
                         GeometryReader { geometry in
@@ -186,6 +188,10 @@ struct SubCategoryAggregateRow: View {
         return Int((spentAmount / allocatedAmount) * 100)
     }
 
+    private var remainingAmount: Double {
+        allocatedAmount - spentAmount
+    }
+
     var body: some View {
         Button(action: {
             HapticManager.shared.buttonTap()
@@ -195,15 +201,19 @@ struct SubCategoryAggregateRow: View {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     DSText(subCategory.name, font: .dsBody, color: theme.colors.textPrimary)
                     HStack(alignment: .bottom, spacing: DSSpacing.xxs) {
-                        DSText(String(format: "%.0f/%.0f", spentAmount, allocatedAmount), font: .dsCaption, color: theme.colors.textSecondary)
-                        DSText(budgetManager.budget.currency.code, font: .dsCaption, color: theme.colors.textSecondary)
+                        let text = remainingAmount < 0
+                            ? String(format: "%.0f \(budgetManager.budget.currency.code) overspent", abs(remainingAmount))
+                            : String(format: "%.0f \(budgetManager.budget.currency.code) left", remainingAmount)
+                        let textColor = remainingAmount < 0 ? Color.red : theme.colors.textSecondary
+                        DSText(text, font: .dsCaption, color: textColor)
                     }
                 }
 
                 Spacer(minLength: 0)
 
                 // Progress percentage
-                DSText("\(actualSpentPercentage)%", font: .dsBody, color: theme.colors.textSecondary)
+                let percentageColor = remainingAmount < 0 ? Color.red : theme.colors.textSecondary
+                DSText("\(actualSpentPercentage)%", font: .dsBody, color: percentageColor)
                     .fontWeight(.medium)
 
                 // Chevron

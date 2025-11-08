@@ -19,13 +19,22 @@ struct ContentView: View {
     @State private var isLoadingInitialData = false
     @State private var showContentWithAnimation = false
     @AppStorage("dismissedExpiredBudgetId") private var dismissedExpiredBudgetId: String = ""
+    @AppStorage("hasSeenIntroCarousel") private var hasSeenIntroCarousel = false
 
     var body: some View {
         Group {
             // Check authentication first
             if !authManager.isAuthenticated {
-                AuthView()
+                if !hasSeenIntroCarousel {
+                    IntroCarouselView(onComplete: {
+                        // Intro completed, hasSeenIntroCarousel is set to true by the view
+                        // AuthView will be shown automatically
+                    })
                     .environment(authManager)
+                } else {
+                    AuthView()
+                        .environment(authManager)
+                }
             } else if isLoadingInitialData {
                 // Show loading view while fetching data from Supabase after login
                 DataLoadingView()
