@@ -503,11 +503,6 @@ struct MainAppView: View {
                     ThemeSettingsSection()
                         .padding(.horizontal, DSSpacing.md)
 
-                    // Divider
-                    Divider()
-                        .padding(.vertical, DSSpacing.xs)
-                        .padding(.horizontal, DSSpacing.md)
-
                     // Historical Budgets Section (only show if authenticated)
                     SettingsSection(
                         title: "Historical Budgets",
@@ -520,23 +515,8 @@ struct MainAppView: View {
                     }
                     .padding(.horizontal, DSSpacing.md)
 
-                    // Divider
-                    Divider()
-                        .padding(.vertical, DSSpacing.xs)
-                        .padding(.horizontal, DSSpacing.md)
-
                     // Sync Section
                     SyncSection(budgetManager: budgetManager)
-                        .padding(.horizontal, DSSpacing.md)
-
-                    // Divider
-                    Divider()
-                        .padding(.vertical, DSSpacing.xs)
-                        .padding(.horizontal, DSSpacing.md)
-
-                    // Divider
-                    Divider()
-                        .padding(.vertical, DSSpacing.xs)
                         .padding(.horizontal, DSSpacing.md)
 
                     // Sign Out Section
@@ -545,13 +525,8 @@ struct MainAppView: View {
                     }
                     .padding(.horizontal, DSSpacing.md)
 
-                    // Divider
+                    // End Budget Section (only for current budget)
                     if budgetManager.isViewingMostRecentBudget() {
-                        Divider()
-                            .padding(.vertical, DSSpacing.xs)
-                            .padding(.horizontal, DSSpacing.md)
-
-                        // End Budget Section (only for current budget)
                         EndBudgetSection {
                             showingEndBudgetConfirmation = true
                         }
@@ -641,7 +616,7 @@ struct ThemeSettingsSection: View {
                     DSText("Choose your app appearance", font: .dsCaption, color: theme.colors.textSecondary)
                 }
 
-                HStack(spacing: DSSpacing.sm) {
+                VStack(spacing: DSSpacing.xs) {
                     ForEach(ThemePreference.allCases, id: \.self) { preference in
                         ThemeButton(preference: preference, systemColorScheme: systemColorScheme)
                     }
@@ -668,23 +643,26 @@ struct ThemeButton: View {
             theme.themePreference = preference
             theme.updateColorScheme(systemScheme: systemColorScheme)
         }) {
-            VStack(spacing: DSSpacing.xs) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(isSelected ? theme.colors.primary.opacity(0.1) : theme.colors.surfaceVariant)
-                        .frame(height: 60)
+            HStack(spacing: DSSpacing.sm) {
+                Image(systemName: iconName)
+                    .font(.dsBody)
+                    .foregroundColor(theme.colors.textPrimary)
+                    .frame(width: 24, height: 24)
 
-                    Image(systemName: iconName)
-                        .font(.dsTitle)
-                        .foregroundColor(isSelected ? theme.colors.primary : theme.colors.textSecondary)
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    DSText(preference.displayName, font: .dsBody, color: theme.colors.textPrimary)
                 }
 
-                DSText(preference.displayName, font: .dsCaption, color: isSelected ? theme.colors.primary : theme.colors.textSecondary)
-                    .fontWeight(isSelected ? .semibold : .regular)
+                Spacer()
+
+                // Radio button
+                Image(systemName: isSelected ? "circle.inset.filled" : "circle")
+                    .font(.dsBody)
+                    .foregroundColor(isSelected ? theme.colors.primary : theme.colors.textSecondary)
             }
+            .padding(.vertical, DSSpacing.xs)
         }
         .buttonStyle(PlainButtonStyle())
-        .frame(maxWidth: .infinity)
     }
 
     private var iconName: String {
