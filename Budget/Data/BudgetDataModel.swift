@@ -48,14 +48,12 @@ final class TransactionDataModel {
     var name: String
     var notes: String
     var date: Date
-    var isRecurring: Bool
-    var recurrenceType: String
     var createdAt: Date
     var updatedAt: Date
 
     var budget: BudgetDataModel?
 
-    init(transactionId: UUID, budgetId: UUID, categoryId: UUID, categoryGroup: String = "Miscellaneous", amount: Double, name: String = "", notes: String = "", date: Date, isRecurring: Bool = false, recurrenceType: String = "None") {
+    init(transactionId: UUID, budgetId: UUID, categoryId: UUID, categoryGroup: String = "Miscellaneous", amount: Double, name: String = "", notes: String = "", date: Date) {
         self.transactionId = transactionId
         self.budgetId = budgetId
         self.categoryId = categoryId
@@ -64,8 +62,6 @@ final class TransactionDataModel {
         self.name = name
         self.notes = notes
         self.date = date
-        self.isRecurring = isRecurring
-        self.recurrenceType = recurrenceType
         self.createdAt = Date()
         self.updatedAt = Date()
     }
@@ -112,7 +108,6 @@ extension BudgetDataModel {
 
 extension TransactionDataModel {
     func toTransaction() -> Transaction {
-        let recurrence = RecurrenceType(rawValue: recurrenceType) ?? .none
         return Transaction(
             id: transactionId,
             amount: amount,
@@ -120,9 +115,7 @@ extension TransactionDataModel {
             notes: notes,
             date: date,
             categoryId: categoryId,
-            budgetId: budgetId,
-            isRecurring: isRecurring,
-            recurrenceType: recurrence
+            budgetId: budgetId
         )
     }
 
@@ -135,9 +128,7 @@ extension TransactionDataModel {
             amount: transaction.amount,
             name: transaction.name,
             notes: transaction.notes,
-            date: transaction.date,
-            isRecurring: transaction.isRecurring,
-            recurrenceType: transaction.recurrenceType.rawValue
+            date: transaction.date
         )
     }
 }

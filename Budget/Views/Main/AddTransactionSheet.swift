@@ -21,8 +21,6 @@ struct AddTransactionSheet: View {
     @State private var selectedDate = Date() // Defaults to today
     @State private var showingZeroBudgetAlert = false
     @State private var pendingTransaction: Transaction?
-    @State private var isRecurring: Bool = false
-    @State private var selectedRecurrenceIndex: Int = 0  // 0 = Weekly, 1 = Monthly
     @State private var showingDeleteConfirmation = false
     @State private var showingSubCategoryPicker = false
     @State private var isSaving = false
@@ -49,8 +47,6 @@ struct AddTransactionSheet: View {
             _amount = State(initialValue: String(format: "%.2f", transaction.amount))
             _notes = State(initialValue: transaction.notes)
             _selectedDate = State(initialValue: transaction.date)
-            _isRecurring = State(initialValue: transaction.isRecurring)
-            _selectedRecurrenceIndex = State(initialValue: transaction.recurrenceType == .weekly ? 0 : 1)
             _selectedSubCategory = State(initialValue: categories.first(where: { $0.id == transaction.categoryId }))
         }
     }
@@ -82,36 +78,6 @@ struct AddTransactionSheet: View {
                                 DSTextField("Enter amount (e.g., 25.50)", text: $amount, keyboardType: .decimalPad)
                                     .disabled(isSaving)
                             }.padding(.horizontal, DSSpacing.md)
-
-                        // Recurring Transaction Section
-                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                            DSText("Recurring Transaction", font: .dsHeadline, color: theme.colors.textPrimary)
-
-
-                                HStack(spacing: DSSpacing.md) {
-                                    DSFilterChip("One-time", isSelected: !isRecurring) {
-                                        withAnimation(.easeOut(duration: 0.2)) {
-                                            isRecurring = false
-                                        }
-                                    }
-
-                                    DSFilterChip("Weekly", isSelected: isRecurring && selectedRecurrenceIndex == 0) {
-                                        withAnimation(.easeOut(duration: 0.2)) {
-                                            isRecurring = true
-                                            selectedRecurrenceIndex = 0
-                                        }
-                                    }
-
-                                    DSFilterChip("Monthly", isSelected: isRecurring && selectedRecurrenceIndex == 1) {
-                                        withAnimation(.easeOut(duration: 0.2)) {
-                                            isRecurring = true
-                                            selectedRecurrenceIndex = 1
-                                        }
-                                    }
-                                }
-                            }
-                        .frame(height: 40)
-                        .padding(.horizontal, DSSpacing.md)
 
                         // Notes Section
                         VStack(alignment: .leading, spacing: DSSpacing.xs) {
@@ -276,9 +242,6 @@ struct AddTransactionSheet: View {
             return
         }
 
-        // Determine recurrence type
-        let recurrenceType: RecurrenceType = isRecurring ? (selectedRecurrenceIndex == 0 ? .weekly : .monthly) : .none
-
         let transaction: Transaction
         if let existingTx = existingTransaction {
             // Edit mode: preserve the ID
@@ -289,9 +252,7 @@ struct AddTransactionSheet: View {
                 notes: notes,
                 date: selectedDate,
                 categoryId: subCategory.id,
-                budgetId: budgetId,
-                isRecurring: isRecurring,
-                recurrenceType: recurrenceType
+                budgetId: budgetId
             )
         } else {
             // Add mode: create new transaction
@@ -301,9 +262,7 @@ struct AddTransactionSheet: View {
                 notes: notes,
                 date: selectedDate,
                 categoryId: subCategory.id,
-                budgetId: budgetId,
-                isRecurring: isRecurring,
-                recurrenceType: recurrenceType
+                budgetId: budgetId
             )
         }
 
@@ -334,19 +293,12 @@ struct AddTransactionSheet: View {
                         success = budgetManager.updateTransaction(transaction)
                     }
                 } else {
-                    // Add mode: add transaction(s)
-                    if isRecurring {
-                        // Add recurring transactions
-                        print("🔁 AddTransactionSheet: Adding recurring transactions...")
-                        success = await addRecurringTransactions(baseTransaction: transaction, subCategory: subCategory)
+                    // Add mode: add transaction
+                    print("➕ AddTransactionSheet: Adding transaction...")
+                    if let manager = budgetManager as? BudgetManager {
+                        success = await manager.addTransaction(transaction)
                     } else {
-                        // Add single transaction
-                        print("➕ AddTransactionSheet: Adding single transaction...")
-                        if let manager = budgetManager as? BudgetManager {
-                            success = await manager.addTransaction(transaction)
-                        } else {
-                            success = budgetManager.addTransaction(transaction)
-                        }
+                        success = budgetManager.addTransaction(transaction)
                     }
                 }
 
@@ -377,75 +329,6 @@ struct AddTransactionSheet: View {
                 dismiss()
             }
         }
-    }
-
-    private func addRecurringTransactions(baseTransaction: Transaction, subCategory: SubCategory) async -> Bool {
-        let calendar = Calendar.current
-
-        // Add the initial transaction
-        var success: Bool
-        if let manager = budgetManager as? BudgetManager {
-            success = await manager.addTransaction(baseTransaction)
-        } else {
-            success = budgetManager.addTransaction(baseTransaction)
-        }
-
-        if !success {
-            return false
-        }
-
-        // Calculate how many recurring transactions to add based on budget period
-        let occurrences: Int
-        switch baseTransaction.recurrenceType {
-        case .weekly:
-            // Add weekly transactions until budget end date
-            let weeks = calendar.dateComponents([.weekOfYear], from: baseTransaction.date, to: budgetPeriod.endDate).weekOfYear ?? 0
-            occurrences = max(0, weeks)
-        case .monthly:
-            // Add monthly transactions until budget end date
-            let months = calendar.dateComponents([.month], from: baseTransaction.date, to: budgetPeriod.endDate).month ?? 0
-            occurrences = max(0, months)
-        case .none:
-            occurrences = 0
-        }
-
-        // Add subsequent transactions
-        for i in 1...occurrences {
-            var nextDate: Date?
-            switch baseTransaction.recurrenceType {
-            case .weekly:
-                nextDate = calendar.date(byAdding: .weekOfYear, value: i, to: baseTransaction.date)
-            case .monthly:
-                nextDate = calendar.date(byAdding: .month, value: i, to: baseTransaction.date)
-            case .none:
-                break
-            }
-
-            if let date = nextDate, date <= budgetPeriod.endDate {
-                let recurringTransaction = Transaction(
-                    amount: baseTransaction.amount,
-                    name: baseTransaction.name,
-                    notes: baseTransaction.notes,
-                    date: date,
-                    categoryId: subCategory.id,
-                    budgetId: budgetId,
-                    isRecurring: true,
-                    recurrenceType: baseTransaction.recurrenceType
-                )
-
-                if let manager = budgetManager as? BudgetManager {
-                    success = await manager.addTransaction(recurringTransaction)
-                } else {
-                    success = budgetManager.addTransaction(recurringTransaction)
-                }
-
-                if !success {
-                    return false
-                }
-            }
-        }
-
-        return true
     }
 
     private func addTransactionWithBudgetUpdate() {

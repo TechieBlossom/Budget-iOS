@@ -120,8 +120,6 @@ struct SupabaseTransaction: Codable {
     let name: String  // Expense name
     let notes: String  // Optional notes/description
     let transactionDate: Date
-    let isRecurring: Bool
-    let recurrenceType: String
     let createdAt: Date
     let updatedAt: Date
 
@@ -134,8 +132,6 @@ struct SupabaseTransaction: Codable {
         case name
         case notes
         case transactionDate = "transaction_date"
-        case isRecurring = "is_recurring"
-        case recurrenceType = "recurrence_type"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -270,9 +266,7 @@ extension SupabaseTransaction {
             amount: amount,
             name: name,
             notes: notes,
-            date: transactionDate,
-            isRecurring: isRecurring,
-            recurrenceType: recurrenceType
+            date: transactionDate
         )
 
         model.createdAt = createdAt
@@ -283,7 +277,6 @@ extension SupabaseTransaction {
 
     /// Convert to domain model Transaction
     func toTransaction() -> Transaction {
-        let recurrence = RecurrenceType(rawValue: recurrenceType) ?? .none
         return Transaction(
             id: id,
             amount: amount,
@@ -291,9 +284,7 @@ extension SupabaseTransaction {
             notes: notes,
             date: transactionDate,
             categoryId: categoryId,
-            budgetId: budgetId,
-            isRecurring: isRecurring,
-            recurrenceType: recurrence
+            budgetId: budgetId
         )
     }
 
@@ -308,8 +299,6 @@ extension SupabaseTransaction {
             name: transaction.name,
             notes: transaction.notes,
             transactionDate: transaction.date,
-            isRecurring: transaction.isRecurring,
-            recurrenceType: transaction.recurrenceType.rawValue,
             createdAt: Date(),
             updatedAt: Date()
         )

@@ -84,7 +84,7 @@ struct DSCategoryManagementView: View {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     DSText("Total Budget Amount", font: .dsHeadline, color: theme.colors.textPrimary)
                     HStack(alignment: .bottom, spacing: DSSpacing.xxs) {
-                        DSText(formattedTotalAmount, font: .dsHeadline, color: theme.colors.primary)
+                        DSText(formattedTotalAmount, font: .dsHeadline, color: theme.colors.textPrimary)
                         DSText(currency.code, font: .dsSubtitle, color: theme.colors.textPrimary)
                     }
                 }

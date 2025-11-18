@@ -78,13 +78,6 @@ struct BudgetSettingsView: View {
                         Divider()
                             .padding(.vertical, DSSpacing.xs)
 
-                        // Sync Section
-                        SyncSection(budgetManager: budgetManager)
-
-                        // Divider
-                        Divider()
-                            .padding(.vertical, DSSpacing.xs)
-
                         // Account Section - Sign Out
                         SignOutSection {
                             showingSignOutConfirmation = true
@@ -276,52 +269,6 @@ struct EndBudgetSection: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
-    }
-}
-
-struct SyncSection: View {
-    let budgetManager: BudgetManager
-    @Environment(\.appTheme) private var theme
-    @State private var isSyncing = false
-
-    private var lastSyncText: String {
-        switch budgetManager.syncState {
-        case .synced(let date):
-            let formatter = RelativeDateTimeFormatter()
-            formatter.unitsStyle = .full
-            return "Last synced \(formatter.localizedString(for: date, relativeTo: Date()))"
-        case .error:
-            return "Last sync failed"
-        case .offline:
-            return "Offline"
-        case .syncing:
-            return "Syncing..."
-        }
-    }
-
-    var body: some View {
-        DSCard(padding: 8) {
-            HStack(alignment: .center, spacing: DSSpacing.md) {
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    DSText("Sync Status", font: .dsHeadline, color: theme.colors.textPrimary)
-                    DSText(lastSyncText, font: .dsCaption, color: theme.colors.textSecondary)
-                }
-
-                Spacer()
-
-                // Sync now button
-                DSButton("Sync Now", style: .outline) {
-                    Task {
-                        isSyncing = true
-                        await budgetManager.refreshFromSupabase()
-                        isSyncing = false
-                    }
-                }
-                .disabled(isSyncing || budgetManager.syncState == .syncing)
-            }
-            .padding(.horizontal, DSSpacing.sm)
-            .padding(.vertical, DSSpacing.sm)
-        }
     }
 }
 

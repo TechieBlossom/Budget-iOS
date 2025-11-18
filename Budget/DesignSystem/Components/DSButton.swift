@@ -38,12 +38,12 @@ struct DSButton: View {
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, verticalPadding)
                 .background(backgroundColor)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(borderColor, lineWidth: borderWidth)
-                )
                 .cornerRadius(8)
                 .cornerRadius(cornerRadius)
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .stroke(borderColor, lineWidth: borderWidth)
+                )
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -98,16 +98,26 @@ struct DSButton: View {
         case .primary:
             return .white
         case .outline:
-            return theme.colors.primary
+            return theme.colors.textPrimary
         }
     }
 
     private var borderColor: Color {
-        return theme.colors.primaryLight
+        switch style {
+        case .primary:
+            return Color.clear
+        case .outline:
+            return theme.colors.divider
+        }
     }
-    
+
     private var borderWidth: CGFloat {
-        return 2
+        switch style {
+        case .primary:
+            return 0
+        case .outline:
+            return 1
+        }
     }
 }
 

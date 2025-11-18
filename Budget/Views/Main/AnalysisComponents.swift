@@ -285,7 +285,7 @@ struct CategoryGroupBarRow: View {
                     HStack {
                         let relativeWidth = percentage / maxPercentage
                         if relativeWidth > 0.3 {
-                            DSText(group.displayName, font: .dsCaption, color: theme.colors.textPrimary)
+                            DSText(group.displayName, font: .dsCaption, color: Color(hex: "1a1a1a"))
                                 .fontWeight(.medium)
                                 .padding(.leading, DSSpacing.xs)
                                 .opacity(showText ? 1.0 : 0.0)

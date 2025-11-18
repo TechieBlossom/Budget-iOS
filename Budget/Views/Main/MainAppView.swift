@@ -507,10 +507,6 @@ struct MainAppView: View {
                     }
                     .padding(.horizontal, DSSpacing.md)
 
-                    // Sync Section
-                    SyncSection(budgetManager: budgetManager)
-                        .padding(.horizontal, DSSpacing.md)
-
                     // Sign Out Section
                     SignOutSection {
                         showingSignOutConfirmation = true

@@ -16,7 +16,6 @@ struct DSCard<Content: View>: View {
             .padding(padding)
             .background(theme.colors.surface)
             .cornerRadius(12)
-            .shadow(color: theme.colors.textSecondary.opacity(0.1), radius: 2, x: 0, y: 1)
     }
 }
 

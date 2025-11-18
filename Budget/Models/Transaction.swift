@@ -1,15 +1,5 @@
 import Foundation
 
-enum RecurrenceType: String, Codable, CaseIterable {
-    case none = "None"
-    case weekly = "Weekly"
-    case monthly = "Monthly"
-
-    var displayName: String {
-        rawValue
-    }
-}
-
 struct Transaction: Identifiable, Hashable {
     let id: UUID
     let budgetId: UUID  // Direct reference to budget for performance and data integrity
@@ -18,10 +8,8 @@ struct Transaction: Identifiable, Hashable {
     let notes: String  // Optional notes/description
     let date: Date
     let categoryId: UUID
-    let isRecurring: Bool
-    let recurrenceType: RecurrenceType
 
-    init(amount: Double, name: String = "", notes: String = "", date: Date = Date(), categoryId: UUID, budgetId: UUID, isRecurring: Bool = false, recurrenceType: RecurrenceType = .none) {
+    init(amount: Double, name: String = "", notes: String = "", date: Date = Date(), categoryId: UUID, budgetId: UUID) {
         self.id = UUID()
         self.budgetId = budgetId
         self.amount = amount
@@ -29,11 +17,9 @@ struct Transaction: Identifiable, Hashable {
         self.notes = notes
         self.date = date
         self.categoryId = categoryId
-        self.isRecurring = isRecurring
-        self.recurrenceType = recurrenceType
     }
 
-    init(id: UUID, amount: Double, name: String = "", notes: String = "", date: Date, categoryId: UUID, budgetId: UUID, isRecurring: Bool = false, recurrenceType: RecurrenceType = .none) {
+    init(id: UUID, amount: Double, name: String = "", notes: String = "", date: Date, categoryId: UUID, budgetId: UUID) {
         self.id = id
         self.budgetId = budgetId
         self.amount = amount
@@ -41,8 +27,6 @@ struct Transaction: Identifiable, Hashable {
         self.notes = notes
         self.date = date
         self.categoryId = categoryId
-        self.isRecurring = isRecurring
-        self.recurrenceType = recurrenceType
     }
     
     var formattedAmount: String {

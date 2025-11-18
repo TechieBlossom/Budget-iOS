@@ -52,7 +52,7 @@ class AppTheme {
 struct ThemeColors {
     // Brand & Interactive Colors
     let primary: Color              // Brand color - main CTA, interactive elements
-    let primaryLight: Color         // Lighter variant for hover/disabled states
+let primaryLight: Color         // Lighter variant for hover/disabled states
     let primaryDark: Color          // Darker variant for pressed states
 
     // Text Colors
@@ -115,11 +115,11 @@ struct ThemeColors {
         textSecondary: Color(hex: "b3b3b3"),
         textTertiary: Color(hex: "808080"),
 
-        // Background Colors - Dark palette
-        background: Color(hex: "121212"),
-        backgroundSecondary: Color(hex: "1e1e1e"),
-        surface: Color(hex: "2c2c2c"),
-        surfaceVariant: Color(hex: "383838"),
+        // Background Colors - Much darker palette for true dark mode
+        background: Color(hex: "0f0f0f"),
+        backgroundSecondary: Color(hex: "1a1a1a"),
+        surface: Color(hex: "1e1e1e"),
+        surfaceVariant: Color(hex: "242424"),
 
         // Semantic Colors - Adjusted for dark mode
         success: Color(hex: "66bb6a"),
@@ -128,7 +128,7 @@ struct ThemeColors {
         info: Color(hex: "42a5f5"),
 
         // Utility Colors
-        divider: Color(hex: "444444"),
+        divider: Color(hex: "333333"),
         overlay: Color(hex: "000000").opacity(0.7)
     )
 }
